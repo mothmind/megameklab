@@ -46,6 +46,8 @@ import java.util.ResourceBundle;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 
+import megamek.client.ui.Messages;
+import megamek.client.ui.clientGUI.GUIPreferences;
 import megamek.client.ui.comboBoxes.MMComboBox;
 import megamek.common.enums.WeaponSortOrder;
 import megameklab.printing.MekChassisArrangement;
@@ -95,6 +97,10 @@ class ExportSettingsPanel extends JPanel {
     private final MMComboBox<RecordSheetOptions.ExplicitZeroModifierStyle> comboExplicitZeroModifier;
     private final JCheckBox chkExtraPhysicals = new JCheckBox();
     private final JCheckBox chkFancyPips = new JCheckBox();
+    private final JCheckBox chkDiscordExportTechLevel = new JCheckBox();
+    private final JCheckBox chkDiscordExportAvailability = new JCheckBox();
+    private final JCheckBox chkDiscordExportFluff = new JCheckBox();
+    private final JCheckBox chkDiscordExportNitroLimit = new JCheckBox();
 
     ExportSettingsPanel() {
         ResourceBundle resourceMap = ResourceBundle.getBundle("megameklab.resources.Dialogs");
@@ -304,6 +310,23 @@ class ExportSettingsPanel extends JPanel {
         chkFancyPips.setToolTipText(resourceMap.getString("ConfigurationDialog.chkFancyPips.tooltip"));
         chkFancyPips.setSelected(CConfig.getBooleanParam(CConfig.RS_FANCY_PIPS));
 
+        GUIPreferences guiPrefs = GUIPreferences.getInstance();
+        chkDiscordExportTechLevel.setText(Messages.getString("AdvancedOptions.DiscordExportTechLevel.name"));
+        chkDiscordExportTechLevel.setToolTipText(Messages.getString("AdvancedOptions.DiscordExportTechLevel.tooltip"));
+        chkDiscordExportTechLevel.setSelected(guiPrefs.getBoolean(GUIPreferences.ADVANCED_DISCORD_EXPORT_TECH_LEVEL));
+
+        chkDiscordExportAvailability.setText(Messages.getString("AdvancedOptions.DiscordExportAvailability.name"));
+        chkDiscordExportAvailability.setToolTipText(Messages.getString("AdvancedOptions.DiscordExportAvailability.tooltip"));
+        chkDiscordExportAvailability.setSelected(guiPrefs.getBoolean(GUIPreferences.ADVANCED_DISCORD_EXPORT_AVAILABILITY));
+
+        chkDiscordExportFluff.setText(Messages.getString("AdvancedOptions.DiscordExportFluff.name"));
+        chkDiscordExportFluff.setToolTipText(Messages.getString("AdvancedOptions.DiscordExportFluff.tooltip"));
+        chkDiscordExportFluff.setSelected(guiPrefs.getBoolean(GUIPreferences.ADVANCED_DISCORD_EXPORT_FLUFF));
+
+        chkDiscordExportNitroLimit.setText(Messages.getString("AdvancedOptions.DiscordExportNitroLimit.name"));
+        chkDiscordExportNitroLimit.setToolTipText(Messages.getString("AdvancedOptions.DiscordExportNitroLimit.tooltip"));
+        chkDiscordExportNitroLimit.setSelected(guiPrefs.getBoolean(GUIPreferences.ADVANCED_DISCORD_EXPORT_NITRO_LIMIT));
+
         mekChassis.setRenderer(mekNameArrangementRenderer);
         mekChassis.setSelectedItem(CConfig.getMekNameArrangement());
         mekChassis.setToolTipText(resourceMap.getString("ConfigurationDialog.mekChassis.tooltip"));
@@ -373,12 +396,17 @@ class ExportSettingsPanel extends JPanel {
         innerGridPanel.add(intrinsicPhysicalsPanel);
         innerGridPanel.add(chkExtraPhysicals);
         innerGridPanel.add(explicitZeroModifierPanel);
+        innerGridPanel.add(chkDiscordExportTechLevel);
+        innerGridPanel.add(chkDiscordExportAvailability);
+        innerGridPanel.add(chkDiscordExportFluff);
+        innerGridPanel.add(chkDiscordExportNitroLimit);
+        innerGridPanel.add(new JLabel(""));
         innerGridPanel.add(new JLabel(""));
         gridPanel.add(innerGridPanel);
         gridPanel.add(mekNameLine);
         gridPanel.add(scalePanel);
 
-        SpringUtilities.makeCompactGrid(innerGridPanel, 11, 2, 0, 0, 15, 6);
+        SpringUtilities.makeCompactGrid(innerGridPanel, 14, 2, 0, 0, 15, 6);
         SpringUtilities.makeCompactGrid(gridPanel, 8, 1, 0, 0, 15, 6);
         gridPanel.setBorder(new EmptyBorder(20, 30, 20, 30));
         setLayout(new FlowLayout(FlowLayout.LEFT));
@@ -468,6 +496,22 @@ class ExportSettingsPanel extends JPanel {
             return 1;
         }
     }
+
+      boolean discordExportTechLevel() {
+            return chkDiscordExportTechLevel.isSelected();
+      }
+
+      boolean discordExportAvailability() {
+            return chkDiscordExportAvailability.isSelected();
+      }
+
+      boolean discordExportFluff() {
+            return chkDiscordExportFluff.isSelected();
+      }
+
+      boolean discordExportNitroLimit() {
+            return chkDiscordExportNitroLimit.isSelected();
+      }
 
     DefaultListCellRenderer mekNameArrangementRenderer = new DefaultListCellRenderer() {
         @Override

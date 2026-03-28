@@ -101,6 +101,10 @@ public class SettingsDialog extends AbstractMMLButtonDialog {
             GUIPreferences.getInstance().setValue(GUIPreferences.GUI_SCALE, miscSettingsPanel.guiScale());
             MegaMekLab.updateGuiScaling();
         }
+        GUIPreferences.getInstance().setValue(GUIPreferences.ADVANCED_DISCORD_EXPORT_TECH_LEVEL, exportSettingsPanel.discordExportTechLevel());
+        GUIPreferences.getInstance().setValue(GUIPreferences.ADVANCED_DISCORD_EXPORT_AVAILABILITY, exportSettingsPanel.discordExportAvailability());
+        GUIPreferences.getInstance().setValue(GUIPreferences.ADVANCED_DISCORD_EXPORT_FLUFF, exportSettingsPanel.discordExportFluff());
+        GUIPreferences.getInstance().setValue(GUIPreferences.ADVANCED_DISCORD_EXPORT_NITRO_LIMIT, exportSettingsPanel.discordExportNitroLimit());
         dispose();
     }
 
