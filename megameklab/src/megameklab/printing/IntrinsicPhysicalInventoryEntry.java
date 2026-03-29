@@ -133,12 +133,12 @@ public record IntrinsicPhysicalInventoryEntry(String name, String location, Stri
 
             if (!mek.hasClaw(Mek.LOC_LEFT_ARM)) {
                 explicitZero = false;
-                if (hasLHand) {
-                    mod = 0;
-                } else if (hasLLowerActuator) {
-                    mod = 1;
-                } else {
-                    mod = 2;
+                mod = 0;
+                if (!hasLHand) {
+                    mod += 1;
+                }
+                if (!hasLLowerActuator) {
+                    mod += 2;
                 }
                 if (hasLArmAES) {
                     mod--;
@@ -149,12 +149,12 @@ public record IntrinsicPhysicalInventoryEntry(String name, String location, Stri
 
             if (!mek.hasClaw(Mek.LOC_RIGHT_ARM)) {
                 explicitZero = false;
-                if (hasRHand) {
-                    mod = 0;
-                } else if (hasRLowerActuator) {
-                    mod = 1;
-                } else {
-                    mod = 2;
+                mod = 0;
+                if (!hasRHand) {
+                    mod += 1;
+                }
+                if (!hasRLowerActuator) {
+                    mod += 2;
                 }
                 if (hasRArmAES) {
                     mod--;
@@ -189,7 +189,7 @@ public record IntrinsicPhysicalInventoryEntry(String name, String location, Stri
         if (hasLHand && hasRHand) {
             var dmg = formatDamage(mek.getWeight() / 5, hasTsm);
             var mod = -1;
-            if (mek.hasWorkingMisc(MiscTypeFlag.F_CLUB, MiscType.S_CLAW)) {
+            if (mek.hasWorkingMisc(MiscTypeFlag.F_CLUB, MiscTypeFlag.S_CLAW)) {
                 mod += 2;
             }
             if (hasLArmAES && hasRArmAES) {

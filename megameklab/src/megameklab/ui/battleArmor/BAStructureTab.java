@@ -78,6 +78,7 @@ import megameklab.ui.listeners.BABuildListener;
 import megameklab.ui.util.CustomComboBox;
 import megameklab.ui.util.ITab;
 import megameklab.ui.util.RefreshListener;
+import megameklab.util.BattleArmorUtil;
 import megameklab.util.UnitUtil;
 
 /**
@@ -463,6 +464,11 @@ public class BAStructureTab extends ITab
     }
 
     @Override
+    public void factionChanged(Faction faction) {
+        getEntity().setTechFaction(faction);
+    }
+
+    @Override
     public void techBaseChanged(boolean clan, boolean mixed) {
         if ((clan != getBattleArmor().isClan()) || (mixed != getBattleArmor().isMixedTech())) {
             getBattleArmor().setMixedTech(mixed);
@@ -567,7 +573,7 @@ public class BAStructureTab extends ITab
     @Override
     public void chassisTypeChanged(int chassisType) {
         getBattleArmor().setChassisType(chassisType);
-        UnitUtil.removeAllCriticalSlotsFrom(getBattleArmor(),
+        BattleArmorUtil.removeAllCriticalSlotsFrom(getBattleArmor(),
               List.of(BattleArmor.MOUNT_LOC_LEFT_ARM, BattleArmor.MOUNT_LOC_RIGHT_ARM, BattleArmor.MOUNT_LOC_TURRET));
         panBasicInfo.setFromEntity(getBattleArmor());
         panChassis.setFromEntity(getBattleArmor());

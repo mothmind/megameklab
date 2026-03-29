@@ -57,6 +57,11 @@ public class BAMainUI extends MegaMekLabMainUI {
     private BAEquipmentTab equipTab;
     private FluffTab fluffTab;
     private BAStatusBar statusbar;
+
+    @Override
+    protected FluffTab getFluffTab() {
+        return fluffTab;
+    }
     private QuirksTab quirksTab;
     private FloatingEquipmentDatabaseDialog floatingEquipmentDatabase;
 
@@ -195,6 +200,7 @@ public class BAMainUI extends MegaMekLabMainUI {
     public void refreshEquipmentTable() {
         super.refreshEquipmentTable();
         equipTab.refreshTable();
+        equipTab.refresh();
         floatingEquipmentDatabase.refresh();
     }
 
@@ -203,6 +209,7 @@ public class BAMainUI extends MegaMekLabMainUI {
         return (structureTab != null) ? structureTab.getTechManager() : null;
     }
 
+    @Override
     public JDialog getFloatingEquipmentDatabase() {
         return floatingEquipmentDatabase;
     }

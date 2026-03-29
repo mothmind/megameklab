@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import megamek.common.RangeType;
+import megamek.common.battleArmor.BattleArmor;
 import megamek.common.enums.TechBase;
 import megamek.common.equipment.AmmoType;
 import megamek.common.equipment.EquipmentFlag;
@@ -155,6 +156,7 @@ public class StandardInventoryEntry implements InventoryEntry, Comparable<Standa
         ranges = setRanges();
     }
 
+    @Override
     public String getUniqueId() {
         final String name = this.mount.getType().getInternalName();
         final String location = this.mount.getEntity().getLocationAbbr(this.mount.getLocation());
@@ -311,6 +313,14 @@ public class StandardInventoryEntry implements InventoryEntry, Comparable<Standa
         if (mount.isPintleTurretMounted()) {
             name.append(" (P)");
         }
+        if (mount instanceof WeaponMounted && mount.getEntity().isBattleArmor()) {
+            if (mount.getBaMountLoc() == BattleArmor.MOUNT_LOC_BODY) {
+                name.append(" (Body)");
+            } else
+            if (!mount.isMekTurretMounted() && mount.getBaMountLoc() == BattleArmor.MOUNT_LOC_TURRET) {
+                name.append(" (T)");
+            }
+        }
         if (mount.isSquadSupportWeapon()) {
             name.append(" (SSW: Trooper 1)");
         }
@@ -325,6 +335,17 @@ public class StandardInventoryEntry implements InventoryEntry, Comparable<Standa
                   .append((int) mount.getSize() * ((InfantryWeapon) mount.getType()).getShots())
                   .append(" shots]");
         }
+
+        if (mount.isOneShot()) {
+            if ((mount.getLinked() != null) && (mount.getLinked().getType() instanceof AmmoType at)) {
+                if (at.getBaseAmmo() != null) {
+                    name.append(" [")
+                          .append(at.getMutatorName().replace("(Clan) ", ""))
+                          .append("]");
+                }
+            }
+        }
+
         return name.toString().trim();
     }
 
@@ -386,6 +407,9 @@ public class StandardInventoryEntry implements InventoryEntry, Comparable<Standa
             } else {
                 return AERODYNE_ARCS[mount.getLocation()];
             }
+        }
+        if (mount.getEntity() instanceof BattleArmor) {
+            return BattleArmor.getBaMountLocAbbr(mount.getBaMountLoc());
         }
         return mount.getEntity().joinLocationAbbr(mount.allLocations(), 2);
     }

@@ -59,6 +59,7 @@ import megamek.common.equipment.MiscMounted;
 import megamek.common.equipment.MiscType;
 import megamek.common.equipment.Mounted;
 import megamek.common.equipment.WeaponType;
+import megamek.common.equipment.enums.MiscTypeFlag;
 import megamek.common.exceptions.LocationFullException;
 import megamek.common.units.BipedMek;
 import megamek.common.units.Entity;
@@ -1262,16 +1263,52 @@ public final class MekUtil {
     }
 
     /**
-     * For the given Mek, adds Clan CASE in every location that has potentially explosive equipment (this includes PPC
-     * Capacitors) and removes it from all other locations. Calls {@link Mek#addClanCase()}. This method does not check
-     * if other CASE types are already present on a location.
+     * For the given Mek, removes all existing Clan CASE and then re-adds it to every location that has potentially
+     * explosive equipment (this includes PPC Capacitors). Skips locations that already have (IS) CASE or CASE II.
+     * Respects per-location opt-out.
      *
      * @param mek the mek to update
      */
     public static void updateClanCasePlacement(Mek mek) {
-        if (mek.isClan()) {
+        boolean hadClanCase = mek.isClan() || mek.hasClanCaseEquipped();
+        if (hadClanCase) {
             removeAllMounted(mek, EquipmentType.get(EquipmentTypeLookup.CLAN_CASE));
-            mek.addClanCase();
+            addClanCaseToExplosiveLocations(mek);
+        }
+    }
+
+    /**
+     * Adds Clan CASE to all locations on the Mek that have explosive equipment and don't already have CASE or CASE II.
+     * Unlike {@link Mek#addClanCase()}, this does not check tech base or existing Clan CASE presence.
+     * Respects per-location opt-out via {@link Mek#isClanCaseOptedOut(int)}.
+     *
+     * @param mek the mek to add Clan CASE to
+     */
+    public static void addClanCaseToExplosiveLocations(Mek mek) {
+        EquipmentType clCase = EquipmentType.get(EquipmentTypeLookup.CLAN_CASE);
+        for (int i = 0; i < mek.locations(); i++) {
+            if (mek.locationHasCase(i) || mek.hasCASEII(i)) {
+                continue;
+            }
+            // Respect per-location opt-out
+            if (mek.isClanCaseOptedOut(i)) {
+                continue;
+            }
+            boolean explosiveFound = false;
+            for (Mounted<?> m : mek.getEquipment()) {
+                if (m.getType().isExplosive(m, true)
+                      && ((m.getLocation() == i) || (m.getSecondLocation() == i))) {
+                    explosiveFound = true;
+                    break;
+                }
+            }
+            if (explosiveFound) {
+                try {
+                    mek.addEquipment(Mounted.createMounted(mek, clCase), i, false);
+                } catch (Exception ignored) {
+                    // 0-crit equipment shouldn't fail
+                }
+            }
         }
     }
 
@@ -1329,7 +1366,7 @@ public final class MekUtil {
             }
 
             if ((unit instanceof LandAirMek)
-                  && ((eq.hasFlag(MiscType.F_MASC) && eq.getSubType() == MiscType.S_SUPERCHARGER)
+                  && ((eq.hasFlag(MiscType.F_MASC) && eq.hasFlag(MiscTypeFlag.S_SUPERCHARGER))
                   || eq.hasFlag(MiscType.F_MODULAR_ARMOR)
                   || eq.hasFlag(MiscType.F_JUMP_BOOSTER)
                   || eq.hasFlag(MiscType.F_PARTIAL_WING)
@@ -1343,8 +1380,7 @@ public final class MekUtil {
                   || eq.hasFlag(MiscType.F_MEDIUM_BRIDGE_LAYER)
                   || eq.hasFlag(MiscType.F_LIGHT_BRIDGE_LAYER)
                   || (eq.hasFlag(MiscType.F_CLUB)
-                  && (eq.getSubType() == MiscType.S_BACKHOE)
-                  || (eq.getSubType() == MiscType.S_COMBINE)))) {
+                  && (eq.hasAnyFlag(MiscTypeFlag.S_BACKHOE, MiscTypeFlag.S_COMBINE))))) {
                 return false;
             }
 

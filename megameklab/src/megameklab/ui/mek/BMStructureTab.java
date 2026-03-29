@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2008-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMekLab.
  *
@@ -176,9 +176,9 @@ public class BMStructureTab extends ITab implements MekBuildListener, ArmorAlloc
 
         rightPanel.add(panArmor);
         rightPanel.add(Box.createVerticalStrut(11));
-        rightPanel.add(panArmorAllocation);
-        rightPanel.add(Box.createVerticalStrut(11));
         rightPanel.add(panPatchwork);
+        rightPanel.add(Box.createVerticalStrut(11));
+        rightPanel.add(panArmorAllocation);
         rightPanel.add(Box.createVerticalGlue());
 
         GridBagConstraints gbc = new GridBagConstraints();
@@ -649,6 +649,11 @@ public class BMStructureTab extends ITab implements MekBuildListener, ArmorAlloc
     }
 
     @Override
+    public void factionChanged(Faction faction) {
+        getEntity().setTechFaction(faction);
+    }
+
+    @Override
     public void mulIdChanged(int mulId) {
         getMek().setMulId(mulId);
         refresh.refreshSummary();
@@ -657,6 +662,14 @@ public class BMStructureTab extends ITab implements MekBuildListener, ArmorAlloc
     @Override
     public void techBaseChanged(boolean clan, boolean mixed) {
         if ((clan != getMek().isClan()) || (mixed != getMek().isMixedTech())) {
+            // When switching away from mixed tech, remove Clan CASE from non-Clan units
+            if (!mixed && !clan && getMek().hasClanCaseEquipped()) {
+                UnitUtil.removeAllMounted(getMek(), EquipmentType.get(EquipmentTypeLookup.CLAN_CASE));
+            }
+            // Clear Clan CASE opt-out when tech base no longer supports it
+            if (!clan && !mixed) {
+                getMek().clearClanCaseOptOut();
+            }
             getMek().setMixedTech(mixed);
             updateTechLevel();
         }
@@ -990,6 +1003,78 @@ public class BMStructureTab extends ITab implements MekBuildListener, ArmorAlloc
     }
 
     @Override
+    public void dniCockpitModChanged(boolean hasMod) {
+        if (hasMod && !getMek().hasDNICockpitMod()) {
+            MiscType dniMod = (MiscType) EquipmentType.get("DNICockpitModification");
+            if (dniMod != null) {
+                try {
+                    getMek().addEquipment(dniMod, Entity.LOC_NONE);
+                } catch (Exception ignored) {
+                    // 0-crit equipment shouldn't fail to add
+                }
+            }
+        } else if (!hasMod && getMek().hasDNICockpitMod()) {
+            for (MiscMounted mounted : getMek().getMisc()) {
+                if (mounted.getType().hasFlag(MiscType.F_DNI_COCKPIT_MOD)) {
+                    getMek().removeMisc(mounted.getType().getInternalName());
+                    break;
+                }
+            }
+        }
+        refresh.refreshBuild();
+        refresh.refreshStatus();
+        refresh.refreshPreview();
+    }
+
+    @Override
+    public void eiCockpitChanged(boolean hasEI) {
+        if (hasEI && !getMek().hasEiCockpit()) {
+            MiscType eiInterface = (MiscType) EquipmentType.get("EIInterface");
+            if (eiInterface != null) {
+                try {
+                    getMek().addEquipment(eiInterface, Entity.LOC_NONE);
+                } catch (Exception ignored) {
+                    // 0-crit equipment shouldn't fail to add
+                }
+            }
+        } else if (!hasEI && getMek().hasEiCockpit()) {
+            for (MiscMounted mounted : getMek().getMisc()) {
+                if (mounted.getType().hasFlag(MiscType.F_EI_INTERFACE)) {
+                    getMek().removeMisc(mounted.getType().getInternalName());
+                    break;
+                }
+            }
+        }
+        refresh.refreshBuild();
+        refresh.refreshStatus();
+        refresh.refreshPreview();
+    }
+
+    @Override
+    public void damageInterruptCircuitChanged(boolean hasDIC) {
+        if (hasDIC && !getMek().hasDamageInterruptCircuit()) {
+            MiscType dicMod = (MiscType) EquipmentType.get("DamageInterruptCircuit");
+            if (dicMod != null) {
+                try {
+                    getMek().addEquipment(dicMod, Entity.LOC_NONE);
+                } catch (Exception ignored) {
+                    // 0-crit equipment shouldn't fail to add
+                }
+            }
+        } else if (!hasDIC && getMek().hasDamageInterruptCircuit()) {
+            for (MiscMounted mounted : getMek().getMisc()) {
+                if (mounted.getType().hasFlag(MiscType.F_DAMAGE_INTERRUPT_CIRCUIT)) {
+                    getMek().removeMisc(mounted.getType().getInternalName());
+                    break;
+                }
+            }
+        }
+        refresh.refreshBuild();
+        refresh.refreshStatus();
+        refresh.refreshPreview();
+    }
+
+    @Override
     public void resetChassis() {
         UnitUtil.resetBaseChassis(getMek());
         refresh.refreshAll();
@@ -1080,6 +1165,7 @@ public class BMStructureTab extends ITab implements MekBuildListener, ArmorAlloc
         refresh.refreshSummary();
         refresh.refreshBuild();
         refresh.refreshPreview();
+        panHeat.setFromMek(getMek());
     }
 
     @Override
@@ -1448,14 +1534,12 @@ public class BMStructureTab extends ITab implements MekBuildListener, ArmorAlloc
             crits = (crits + 1) / 2;
         }
         if (getMek().getEmptyCriticalSlots(location) < crits) {
-            JOptionPane.showMessageDialog(
-                  null, armor.getName()
-                        + " does not fit in location "
-                        + getMek().getLocationName(location)
-                        + ". Resetting to Standard Armor in this location.",
+            JOptionPane.showMessageDialog(this,
+                  "%s does not fit in location %s. Resetting to Standard Armor in this location."
+                        .formatted(armor.getName(), getMek().getLocationName(location)),
                   "Error",
                   JOptionPane.INFORMATION_MESSAGE);
-            UnitUtil.resetArmor(getMek(), location);
+            panPatchwork.setFromEntity(getMek());
         } else {
             getMek().setArmorType(armor.getArmorType(), location);
             getMek().setArmorTechLevel(armor.getTechLevel(getTechManager().getGameYear(), armor.isClan()), location);

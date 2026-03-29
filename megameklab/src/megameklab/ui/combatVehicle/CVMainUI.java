@@ -65,6 +65,11 @@ public class CVMainUI extends MegaMekLabMainUI {
     private CVBuildTab buildTab;
     private FluffTab fluffTab;
     private CVStatusBar statusbar;
+
+    @Override
+    protected FluffTab getFluffTab() {
+        return fluffTab;
+    }
     private QuirksTab quirksTab;
     private FloatingEquipmentDatabaseDialog floatingEquipmentDatabase;
 
@@ -262,6 +267,7 @@ public class CVMainUI extends MegaMekLabMainUI {
         return structureTab.getTechManager();
     }
 
+    @Override
     public JDialog getFloatingEquipmentDatabase() {
         return floatingEquipmentDatabase;
     }

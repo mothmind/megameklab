@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMekLab.
  *
@@ -30,41 +30,32 @@
  * <https://www.xbox.com/en-US/developers/rules> and it is not endorsed by or
  * affiliated with Microsoft.
  */
-package megameklab.ui.listeners;
+package megameklab.ui.util;
 
-import megamek.common.equipment.Engine;
-import megamek.common.equipment.EquipmentType;
+import megamek.common.annotations.Nullable;
+import megamek.common.equipment.Mounted;
 
 /**
- * Listener for views used by Meks.
- *
- * @author Neoancient
+ * Crit views implementing this interface can help the user by darkening those locations that cannot receive a
+ * mouse-dragged equipment. This is used by transfer handlers.
  */
-public interface MekBuildListener extends BuildListener {
-    void tonnageChanged(double tonnage);
+public interface CriticalSlotsView {
 
-    void omniChanged(boolean omni);
+    /**
+     * Darkens all other crit blocks (those that are not for the given location).
+     */
+    void markUnavailableLocations(int location);
 
-    void typeChanged(int baseType, int motiveType, long etype);
+    /**
+     * Darkens all crit blocks that are unavailable to the given equipment, e.g. all but Torsos for CASE. It's a
+     * design decision if this should check only if the location is suitable at all, or also equipment space
+     * requirements or even equipment counts (e.g. only one sword per location). This can be handled differently
+     * vor different unit types.
+     */
+    void markUnavailableLocations(@Nullable Mounted<?> equipment);
 
-    void structureChanged(EquipmentType structure);
-
-    void engineChanged(Engine engine);
-
-    void gyroChanged(int gyroType);
-
-    void cockpitChanged(int cockpitType);
-
-    void enhancementChanged(EquipmentType enhancement);
-
-    void fullHeadEjectChanged(boolean eject);
-
-    void dniCockpitModChanged(boolean hasMod);
-
-    void eiCockpitChanged(boolean hasEI);
-
-    void damageInterruptCircuitChanged(boolean hasDIC);
-
-    void resetChassis();
-
+    /**
+     * Resets all crit blocks to not darkened.
+     */
+    void unMarkAllLocations();
 }

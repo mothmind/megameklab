@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2021-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMekLab.
  *
@@ -50,10 +50,12 @@ import java.util.function.Function;
 import megamek.common.battleArmor.BattleArmor;
 import megamek.common.equipment.AmmoType;
 import megamek.common.equipment.EquipmentType;
+import megamek.common.equipment.EquipmentTypeLookup;
 import megamek.common.equipment.GunEmplacement;
 import megamek.common.equipment.MiscType;
 import megamek.common.equipment.WeaponType;
 import megamek.common.equipment.enums.BombType;
+import megamek.common.equipment.enums.MiscTypeFlag;
 import megamek.common.units.Aero;
 import megamek.common.units.Entity;
 import megamek.common.units.EntityWeightClass;
@@ -115,8 +117,8 @@ public enum EquipmentDatabaseCategory {
                 && !eq.hasFlag(F_TSM)
                 && !eq.hasFlag(F_INDUSTRIAL_TSM)
                 && !(eq.hasFlag(F_MASC)
-                && !eq.hasSubType(S_SUPERCHARGER)
-                && !eq.hasSubType(S_JET_BOOSTER))
+                && !eq.hasFlag(MiscTypeFlag.S_SUPERCHARGER)
+                && !eq.hasFlag(MiscTypeFlag.S_JET_BOOSTER))
                 && !(en.hasETypeFlag(Entity.ETYPE_QUADVEE) && eq.hasFlag(F_TRACKS))
                 && !UnitUtil.isArmorOrStructure(eq)
                 && !(eq.hasFlag(F_CHASSIS_MODIFICATION) && en.isSupportVehicle())
@@ -126,6 +128,7 @@ public enum EquipmentDatabaseCategory {
                 && !(eq.hasFlag(F_PARTIAL_WING) && en.hasETypeFlag(Entity.ETYPE_PROTOMEK))
                 && !(eq.hasFlag(F_SPONSON_TURRET) && en.isSupportVehicle())
                 && !eq.hasFlag(F_PINTLE_TURRET))
+                || eq.is(CL_BA_BOMB_RACK)
                 || eq.is(COOLANT_POD)
                 || eq.is(BattleArmor.MINE_LAUNCHER)
                 || (eq instanceof TAGWeapon)

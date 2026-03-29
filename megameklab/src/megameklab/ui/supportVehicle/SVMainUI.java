@@ -70,6 +70,11 @@ public class SVMainUI extends MegaMekLabMainUI {
     private SVBuildTab buildTab;
     private FluffTab fluffTab;
     private SVStatusBar statusbar;
+
+    @Override
+    protected FluffTab getFluffTab() {
+        return fluffTab;
+    }
     private QuirksTab quirksTab;
     private FloatingEquipmentDatabaseDialog floatingEquipmentDatabase;
 
@@ -280,6 +285,7 @@ public class SVMainUI extends MegaMekLabMainUI {
         return structureTab.getTechManager();
     }
 
+    @Override
     public JDialog getFloatingEquipmentDatabase() {
         return floatingEquipmentDatabase;
     }
