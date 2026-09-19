@@ -38,6 +38,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -47,6 +48,7 @@ import java.util.stream.Collectors;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 
+import megamek.SuiteConstants;
 import megamek.client.Client;
 import megamek.codeUtilities.StringUtility;
 import megamek.common.CriticalSlot;
@@ -55,6 +57,8 @@ import megamek.common.SimpleTechLevel;
 import megamek.common.TechConstants;
 import megamek.common.annotations.Nullable;
 import megamek.common.battleArmor.BattleArmor;
+import megamek.common.battlefieldSupport.BattlefieldSupportAsset;
+import megamek.common.battlefieldSupport.BattlefieldSupportAssetYaml;
 import megamek.common.enums.TechBase;
 import megamek.common.equipment.*;
 import megamek.common.equipment.enums.MiscTypeFlag;
@@ -64,6 +68,7 @@ import megamek.common.interfaces.ITechManager;
 import megamek.common.interfaces.ITechnology;
 import megamek.common.loaders.BLKFile;
 import megamek.common.loaders.MekFileParser;
+import megamek.common.loaders.MtfFile;
 import megamek.common.options.OptionsConstants;
 import megamek.common.units.*;
 import megamek.common.util.BuildingBlock;
@@ -106,7 +111,9 @@ public class UnitUtil {
         final Game game = dummyClient.getGame();
         game.getOptions().getOption(OptionsConstants.ADVANCED_STRATOPS_QUIRKS).setValue(true);
         game.getOptions().getOption(OptionsConstants.RPG_PILOT_ADVANTAGES).setValue(true);
-        game.getOptions().getOption(OptionsConstants.RPG_MANEI_DOMINI).setValue(true);
+        // Pilot implants are a three-way option; any setting but Off lets a unit's implants load
+        game.getOptions().getOption(OptionsConstants.ADVANCED_NEURAL_INTERFACE_MODE)
+              .setValue(OptionsConstants.NEURAL_INTERFACE_MODE_PILOT_ONLY);
         game.addPlayer(1, dummyPlayer);
         dummyClient.setLocalPlayerNumber(1);
     }
@@ -139,6 +146,7 @@ public class UnitUtil {
     public static boolean isFixedLocationSpreadEquipment(EquipmentType equipmentType) {
         return (equipmentType instanceof MiscType miscType) && (miscType.hasFlag(MiscType.F_JUMP_BOOSTER)
               || miscType.hasFlag(MiscType.F_BA_MANIPULATOR)
+              || miscType.is(EquipmentTypeLookup.BA_MODULAR_EQUIPMENT_ADAPTOR)
               || miscType.hasFlag(MiscType.F_PARTIAL_WING)
               || miscType.hasFlag(MiscType.F_NULL_SIG)
               || miscType.hasFlag(MiscType.F_VOID_SIG)
@@ -146,7 +154,7 @@ public class UnitUtil {
               || miscType.hasFlag(MiscType.F_TRACKS)
               || miscType.hasFlag(MiscType.F_TALON)
               || (miscType.hasFlag(MiscType.F_STEALTH)
-                && (miscType.hasFlag(MiscType.F_MEK_EQUIPMENT) || miscType.hasFlag(MiscType.F_TANK_EQUIPMENT)))
+              && (miscType.hasFlag(MiscType.F_MEK_EQUIPMENT) || miscType.hasFlag(MiscType.F_TANK_EQUIPMENT)))
               || miscType.hasFlag(MiscType.F_CHAMELEON_SHIELD)
               || miscType.hasFlag(MiscType.F_BLUE_SHIELD)
               || miscType.hasFlag(MiscType.F_MAST_MOUNT)
@@ -266,128 +274,7 @@ public class UnitUtil {
      * @param mount The equipment
      */
     public static void removeMounted(Entity unit, Mounted<?> mount) {
-        UnitUtil.removeCriticalSlots(unit, mount);
-
-        if (unit instanceof BattleArmor battleArmor) {
-            // DWP and APM require special treatment
-            BattleArmorUtil.unallocateMounted(battleArmor, mount);
-        }
-
-        // We will need to reset the equipment numbers of the bay ammo and weapons
-        Map<WeaponMounted, List<WeaponMounted>> bayWeapons = new HashMap<>();
-        Map<WeaponMounted, List<AmmoMounted>> bayAmmo = new HashMap<>();
-        for (WeaponMounted bay : unit.getWeaponBayList()) {
-            bayWeapons.put(bay, bay.getBayWeapons());
-            bayAmmo.put(bay, bay.getBayAmmo());
-        }
-
-        // Some special checks for Aeros
-        if (unit instanceof Aero) {
-            if (mount instanceof WeaponMounted) {
-                // Aeros have additional weapon lists that need to be cleared
-                unit.getTotalWeaponList().remove(mount);
-                unit.getWeaponBayList().remove(mount);
-                unit.getWeaponGroupList().remove(mount);
-            }
-        }
-
-        unit.getEquipment().remove(mount);
-
-        if (mount instanceof MiscMounted) {
-            unit.getMisc().remove(mount);
-        } else if (mount instanceof AmmoMounted) {
-            unit.getAmmo().remove(mount);
-        } else if (mount instanceof WeaponMounted) {
-            unit.getWeaponList().remove(mount);
-            unit.getTotalWeaponList().remove(mount);
-        }
-
-        if (mount instanceof WeaponMounted && bayWeapons.containsKey(mount)) {
-            bayWeapons.get(mount).forEach(w -> {
-                removeCriticalSlots(unit, w);
-                changeMountStatus(unit, w, Entity.LOC_NONE, Entity.LOC_NONE, false);
-            });
-            bayAmmo.get(mount).forEach(a -> {
-                removeCriticalSlots(unit, a);
-                Mounted<?> moveTo = UnitUtil.findUnallocatedAmmo(unit, a.getType());
-
-                if (null != moveTo) {
-                    moveTo.setShotsLeft(moveTo.getBaseShotsLeft() + a.getBaseShotsLeft());
-                    UnitUtil.removeMounted(unit, a);
-                }
-
-                changeMountStatus(unit, a, Entity.LOC_NONE, Entity.LOC_NONE, false);
-            });
-            bayWeapons.remove(mount);
-            bayAmmo.remove(mount);
-        }
-
-        for (WeaponMounted bay : bayWeapons.keySet()) {
-            bay.clearBayWeapons();
-            for (WeaponMounted w : bayWeapons.get(bay)) {
-                if (mount != w) {
-                    bay.addWeaponToBay(w);
-                }
-            }
-        }
-
-        for (WeaponMounted bay : bayAmmo.keySet()) {
-            bay.clearBayAmmo();
-            for (AmmoMounted a : bayAmmo.get(bay)) {
-                if (mount != a) {
-                    bay.addAmmoToBay(a);
-                }
-            }
-        }
-
-        // Remove ammo added for a one-shot launcher
-        if ((mount.getType() instanceof WeaponType) && mount.isOneShot()) {
-            List<AmmoMounted> osAmmo = new ArrayList<>();
-            for (AmmoMounted ammo = (AmmoMounted) mount.getLinked();
-                  ammo != null;
-                  ammo = (AmmoMounted) ammo.getLinked()) {
-                osAmmo.add(ammo);
-            }
-            osAmmo.forEach(m -> {
-                unit.getEquipment().remove(m);
-                unit.getAmmo().remove(m);
-            });
-        }
-
-        // It's possible that the equipment we are removing was linked to something else, and so the linkedBy state may
-        // be set. We should remove it. Using getLinked could be unreliable, so we'll brute force it. An example of this
-        // would be removing a linked Artemis IV FCS
-        for (Mounted<?> m : unit.getEquipment()) {
-            if (mount.equals(m.getLinkedBy())) {
-                m.setLinkedBy(null);
-            }
-        }
-
-        if ((mount.getType() instanceof MiscType) &&
-              (mount.getType().hasFlag(MiscType.F_HEAD_TURRET) ||
-                    mount.getType().hasFlag(MiscType.F_SHOULDER_TURRET) ||
-                    mount.getType().hasFlag(MiscType.F_QUAD_TURRET))) {
-            for (Mounted<?> m : unit.getEquipment()) {
-                if (m.getLocation() == mount.getLocation()) {
-                    m.setMekTurretMounted(false);
-                }
-            }
-        }
-
-        if ((mount.getType() instanceof MiscType) && mount.getType().hasFlag(MiscType.F_SPONSON_TURRET)) {
-            for (Mounted<?> m : unit.getEquipment()) {
-                m.setSponsonTurretMounted(false);
-            }
-        }
-
-        if ((mount.getType() instanceof MiscType) && mount.getType().hasFlag(MiscType.F_PINTLE_TURRET)) {
-            for (Mounted<?> m : unit.getEquipment()) {
-                if (m.getLocation() == mount.getLocation()) {
-                    m.setPintleTurretMounted(false);
-                }
-            }
-        }
-        unit.recalculateTechAdvancement();
+        ConstructionUtil.removeMounted(unit, mount);
     }
 
     /**
@@ -444,26 +331,7 @@ public class UnitUtil {
      * @param mounted The equipment to test
      */
     public static void removeCriticalSlots(Entity unit, @Nullable Mounted<?> mounted) {
-        for (int loc = 0; loc < unit.locations(); loc++) {
-            for (int slot = 0; slot < unit.getNumberOfCriticalSlots(loc); slot++) {
-                CriticalSlot criticalSlot = unit.getCritical(loc, slot);
-                if ((criticalSlot != null) && (criticalSlot.getType() == CriticalSlot.TYPE_EQUIPMENT)) {
-                    if ((criticalSlot.getMount() != null) && (criticalSlot.getMount().equals(mounted))) {
-                        // If there are two pieces of equipment in this slot, remove first one, and replace it with
-                        // the second
-                        if (criticalSlot.getMount2() != null) {
-                            criticalSlot.setMount(criticalSlot.getMount2());
-                            criticalSlot.setMount2(null);
-                        } else {
-                            // If it's the only Mounted, clear the slot
-                            unit.setCritical(loc, slot, null);
-                        }
-                    } else if ((criticalSlot.getMount2() != null) && (criticalSlot.getMount2().equals(mounted))) {
-                        criticalSlot.setMount2(null);
-                    }
-                }
-            }
-        }
+        ConstructionUtil.removeCriticalSlots(unit, mounted);
     }
 
     /**
@@ -552,8 +420,19 @@ public class UnitUtil {
      * @return Boolean if the tech level is legal for the passed unit
      */
     public static boolean isLegal(Entity unit, ITechnology tech) {
+        for (int techLevelYear : unit.getTechLevelYears()) {
+            if (isLegal(unit, tech, techLevelYear)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isLegal(Entity unit, ITechnology tech, int techLevelYear) {
+        boolean ignoreExtinction = CConfig.getBooleanParam(CConfig.TECH_EXTINCT)
+              || ((unit instanceof Mek mek) && mek.isFrankenMek());
         if (unit.isMixedTech()) {
-            if (!tech.isAvailableIn(unit.getTechLevelYear(), CConfig.getBooleanParam(CConfig.TECH_EXTINCT))) {
+            if (!tech.isAvailableIn(techLevelYear, ignoreExtinction)) {
                 return false;
             }
         } else {
@@ -561,13 +440,11 @@ public class UnitUtil {
                 return false;
             }
 
-            if (!tech.isAvailableIn(unit.getTechLevelYear(),
-                  unit.isClan(),
-                  CConfig.getBooleanParam(CConfig.TECH_EXTINCT))) {
+            if (!tech.isAvailableIn(techLevelYear, unit.isClan(), ignoreExtinction)) {
                 return false;
             }
         }
-        return TechConstants.convertFromNormalToSimple(tech.getTechLevel(unit.getTechLevelYear(), unit.isClan())) <=
+        return TechConstants.convertFromNormalToSimple(tech.getTechLevel(techLevelYear, unit.isClan())) <=
               TechConstants.convertFromNormalToSimple(unit.getTechLevel());
     }
 
@@ -613,7 +490,8 @@ public class UnitUtil {
             // construction options
             return !eq.hasAnyFlag(MiscTypeFlag.S_CLUB, MiscTypeFlag.S_TREE_CLUB);
         }
-        return eq.hasFlag(MiscType.F_HAND_WEAPON) || eq.hasFlag(MiscType.F_TALON) || eq.hasFlag(MiscType.F_RAM_PLATE);
+        return eq.hasFlag(MiscType.F_HAND_WEAPON) || eq.hasFlag(MiscType.F_TALON) || eq.hasFlag(MiscType.F_SHIELD)
+              || eq.hasFlag(MiscType.F_RAM_PLATE);
     }
 
     public static String getHeatSinkType(String type, boolean clan) {
@@ -705,30 +583,7 @@ public class UnitUtil {
      */
     public static void changeMountStatus(Entity unit, Mounted<?> eq, int location, int secondaryLocation,
           boolean rear) {
-        if ((location != eq.getLocation() && !eq.isOneShot())) {
-            if (eq.getLinked() != null) {
-                eq.getLinked().setLinkedBy(null);
-                eq.setLinked(null);
-            }
-            if (eq.getLinkedBy() != null) {
-                eq.getLinkedBy().setLinked(null);
-                eq.setLinkedBy(null);
-            }
-        }
-        eq.setLocation(location, rear);
-        eq.setSecondLocation(secondaryLocation, rear);
-        eq.setSplit(secondaryLocation > -1);
-        // If we're adding it to a location on the unit, check equipment linkages
-        if (location > Entity.LOC_NONE) {
-            try {
-                MekFileParser.postLoadInit(unit);
-            } catch (Exception ignored) {
-                // Exception thrown for not having equipment to link to yet, which is acceptable here
-            }
-        }
-        if (unit instanceof Mek mek) {
-            MekUtil.updateClanCasePlacement(mek);
-        }
+        ConstructionUtil.changeMountStatus(unit, eq, location, secondaryLocation, rear);
     }
 
     public static void resizeMount(Mounted<?> mount, double newSize) {
@@ -770,8 +625,8 @@ public class UnitUtil {
                     if (cs != null) {
                         toAdd.add(cs);
                     }
-                    entity.setCritical(loc, slot, toAdd.get(0));
-                    toAdd.remove(0);
+                    entity.setCritical(loc, slot, toAdd.getFirst());
+                    toAdd.removeFirst();
                     slot++;
                 }
             }
@@ -788,14 +643,7 @@ public class UnitUtil {
      * @return An unallocated non-one-shot ammo mount of the same type, or null if there is not one.
      */
     public static Mounted<?> findUnallocatedAmmo(Entity unit, EquipmentType at) {
-        for (Mounted<?> m : unit.getAmmo()) {
-            if ((m.getLocation() == Entity.LOC_NONE) &&
-                  at.equals(m.getType()) &&
-                  ((m.getLinkedBy() == null) || !m.getLinkedBy().getType().hasFlag(WeaponType.F_ONE_SHOT))) {
-                return m;
-            }
-        }
-        return null;
+        return ConstructionUtil.findUnallocatedAmmo(unit, at);
     }
 
     /**
@@ -1688,7 +1536,7 @@ public class UnitUtil {
         } else if (unit.hasETypeFlag(Entity.ETYPE_BATTLEARMOR)) {
             testEntity = new TestBattleArmor((BattleArmor) unit, entityVerifier.baOption, null);
         } else if (unit.hasETypeFlag(Entity.ETYPE_INFANTRY)) {
-            testEntity = new TestInfantry((Infantry) unit, entityVerifier.infOption, null);
+            testEntity = new TestInfantry((ConvInfantry) unit, entityVerifier.infOption, null);
         } else if (unit.hasETypeFlag(Entity.ETYPE_HANDHELD_WEAPON)) {
             testEntity = new TestHandheldWeapon((HandheldWeapon) unit, entityVerifier.infOption, null);
         }
@@ -1696,8 +1544,8 @@ public class UnitUtil {
     }
 
     /**
-     * Check that the unit is valid. When the "Use Game Year" setting is enabled, equipment intro
-     * dates are validated against the configured game year rather than the unit's intro year.
+     * Check that the unit is valid. When the "Use Game Year" setting is enabled, equipment intro dates are validated
+     * against the configured game year rather than the unit's intro year.
      *
      * @param unit The entity
      */
@@ -2012,7 +1860,7 @@ public class UnitUtil {
             UnitUtil.removeMounted(unit, m);
         }
 
-        if (unit instanceof Infantry pbi) {
+        if (unit instanceof ConvInfantry pbi) {
             if ((null != pbi.getPrimaryWeapon()) && !techManager.isLegal(pbi.getPrimaryWeapon())) {
                 dirty = true;
                 InfantryUtil.replaceMainWeapon(pbi, (InfantryWeapon) EquipmentType.get("Infantry Auto Rifle"), false);
@@ -2021,8 +1869,13 @@ public class UnitUtil {
                 dirty = true;
                 InfantryUtil.replaceMainWeapon(pbi, null, true);
             }
-            if (techManager.getTechLevel().ordinal() <= SimpleTechLevel.STANDARD.ordinal() && pbi.hasFieldWeapon()) {
+            if (techManager.getTechLevel().ordinal() < SimpleTechLevel.ADVANCED.ordinal() && pbi.hasFieldWeapon()) {
+                dirty = true;
                 InfantryUtil.replaceFieldGun(pbi, null, 0);
+            }
+            if (techManager.getTechLevel().ordinal() < SimpleTechLevel.ADVANCED.ordinal() && pbi.hasDisposableWeapon()) {
+                dirty = true;
+                pbi.equipDisposableWeapon(null);
             }
         }
         return dirty;
@@ -2095,6 +1948,8 @@ public class UnitUtil {
     public static long getEditorTypeForEntity(Entity newUnit) {
         if ((newUnit == null) || (newUnit instanceof Mek)) {
             return Entity.ETYPE_MEK;
+        } else if (newUnit instanceof BattlefieldSupportAsset) {
+            return Entity.ETYPE_BATTLEFIELD_SUPPORT_ASSET;
         } else if (newUnit.isSupportVehicle()) {
             return Entity.ETYPE_SUPPORT_TANK;
         } else if (newUnit.hasETypeFlag(Entity.ETYPE_SMALL_CRAFT)) {
@@ -2133,7 +1988,17 @@ public class UnitUtil {
         }
         try {
             String unitAsString;
-            if (entity instanceof Mek) {
+            if (entity instanceof BattlefieldSupportAsset asset) {
+                // Assets serialize to the .bfs YAML format. The datestamp header (analogous to the MTF/BLK first
+                // line) is a YAML comment, so it is prepended here and honors includeGeneratorHeader rather than
+                // being stripped afterwards like the Mek/BLK header below.
+                String yaml = BattlefieldSupportAssetYaml.toYaml(asset.toAssetData());
+                if (includeGeneratorHeader) {
+                    return "# Saved from version " + SuiteConstants.VERSION + " on " + LocalDate.now()
+                          + java.lang.System.lineSeparator() + yaml;
+                }
+                return yaml;
+            } else if (entity instanceof Mek) {
                 unitAsString = ((Mek) entity).getMtf();
             } else {
                 BuildingBlock blk = BLKFile.getBlock(entity);
@@ -2145,7 +2010,12 @@ public class UnitUtil {
                 unitAsString = sb.toString();
             }
             if (!includeGeneratorHeader) {
-                return unitAsString.substring(unitAsString.indexOf("\n") + 1);
+                int generatorStart = unitAsString.indexOf(MtfFile.GENERATOR);
+                if (generatorStart >= 0) {
+                    int generatorEnd = unitAsString.indexOf('\n', generatorStart);
+                    return unitAsString.substring(0, generatorStart)
+                          + ((generatorEnd >= 0) ? unitAsString.substring(generatorEnd + 1) : "");
+                }
             }
             return unitAsString;
         } catch (Exception ex) {
@@ -2193,6 +2063,9 @@ public class UnitUtil {
      * @param entity The entity to reset
      */
     static public void resetUnit(Entity entity) {
+        if (entity instanceof BattlefieldSupportAsset asset) {
+            asset.setDestroyCheck(asset.getODestroyCheck());
+        }
         for (Mounted<?> mounted : entity.getEquipment()) {
             if (mounted instanceof MiscMounted misc) {
                 misc.setDamageTaken(0);
@@ -2232,6 +2105,10 @@ public class UnitUtil {
     }
 
     static public boolean isDamaged(Entity entity, boolean includeCrew) {
+        if ((entity instanceof BattlefieldSupportAsset asset)
+              && (asset.getDestroyCheck() != asset.getODestroyCheck())) {
+            return true;
+        }
         for (Mounted<?> mounted : entity.getEquipment()) {
             if (mounted.isHit() || mounted.isDestroyed() || mounted.isMissing()) {
                 return true;

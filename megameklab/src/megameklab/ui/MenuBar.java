@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2011-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMekLab.
  *
@@ -32,7 +32,7 @@
  */
 package megameklab.ui;
 
-import java.awt.Component;
+import java.awt.Desktop;
 import java.awt.Toolkit;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.ClipboardOwner;
@@ -45,14 +45,17 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
 import java.util.ResourceBundle;
+import java.util.regex.Pattern;
 import javax.swing.*;
 import javax.swing.UIManager.LookAndFeelInfo;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
+import megamek.client.ui.CopySystemDataAction;
 import megamek.client.ui.clientGUI.GUIPreferences;
 import megamek.client.ui.dialogs.UnitLoadingDialog;
 import megamek.client.ui.dialogs.abstractDialogs.BVDisplayDialog;
 import megamek.client.ui.dialogs.abstractDialogs.CostDisplayDialog;
+import megamek.client.ui.dialogs.abstractDialogs.TechLevelDisplayDialog;
 import megamek.client.ui.dialogs.abstractDialogs.WeightDisplayDialog;
 import megamek.client.ui.dialogs.unitSelectorDialogs.EntityReadoutDialog;
 import megamek.client.ui.entityreadout.EntityReadout;
@@ -60,6 +63,8 @@ import megamek.client.ui.util.UIUtil;
 import megamek.client.ui.util.ViewFormatting;
 import megamek.common.annotations.Nullable;
 import megamek.common.battleArmor.BattleArmor;
+import megamek.common.enums.Faction;
+import megamek.common.interfaces.ITechManager;
 import megamek.common.loaders.MekFileParser;
 import megamek.common.loaders.MekSummaryCache;
 import megamek.common.templates.TROView;
@@ -76,6 +81,7 @@ import megameklab.MMLConstants;
 import megameklab.ui.dialog.MMLFileChooser;
 import megameklab.ui.dialog.MegaMekLabUnitSelectorDialog;
 import megameklab.ui.dialog.PrintQueueDialog;
+import megameklab.ui.dialog.SourcebookEditorDialog;
 import megameklab.ui.dialog.UiLoader;
 import megameklab.ui.dialog.settings.SettingsDialog;
 import megameklab.ui.util.OSUtil;
@@ -104,6 +110,7 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
 
     public MenuBar(MenuBarOwner owner) {
         this.owner = owner;
+        BugReportHelper.installOnErrorDialogs(owner);
         initialize();
     }
 
@@ -142,10 +149,11 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
         add(createUnitValidationMenu());
         add(createForceBuildMenu());
         add(createReportsMenu());
+        add(createDatabaseMenu());
         add(createHelpMenu());
         loadUnitFileChooser.setDialogTitle(resources.getString("dialog.chooseUnit.title"));
         loadUnitFileChooser.setFileFilter(new FileNameExtensionFilter("Unit files",
-              "mtf", "blk", "hmp", "hmv", "mep", "tdb"));
+              "mtf", "blk", "hmp", "hmv", "mep", "tdb", "bfs"));
         loadImageFileChooser.setDialogTitle(resources.getString("dialog.chooseUnit.title"));
         loadImageFileChooser.setFileFilter(new FileNameExtensionFilter("Image files (.png, .jpg, .gif)",
               "png", "jpg", "jpeg", "gif"));
@@ -157,18 +165,19 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
             miNewUnit.setMnemonic(mnemonic);
         }
         miNewUnit.addActionListener(evt -> {
-            MegaMekLabTabbedUI tabbedUI;
-            if (owner instanceof MegaMekLabTabbedUI) {
-                tabbedUI = (MegaMekLabTabbedUI) owner;
-            } else {
-                tabbedUI = new MegaMekLabTabbedUI();
+            boolean newWindow = !(owner instanceof MegaMekLabTabbedUI);
+            MegaMekLabTabbedUI tabbedUI = newWindow
+                  ? new MegaMekLabTabbedUI()
+                  : (MegaMekLabTabbedUI) owner;
+
+            tabbedUI.createNewUnit(type, primitive, false);
+            if (newWindow) {
                 tabbedUI.setVisible(true);
                 if (isStartupGui()) {
                     owner.getFrame().setVisible(false);
                     owner.getFrame().dispose();
                 }
             }
-            tabbedUI.createNewUnit(type, primitive, false);
         });
         return miNewUnit;
     }
@@ -196,6 +205,8 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
         miNewTab.add(newUnitItem("ProtoMek", KeyEvent.VK_P, Entity.ETYPE_PROTOMEK, false));
         miNewTab.add(newUnitItem("Handheld Weapon", KeyEvent.VK_H, Entity.ETYPE_HANDHELD_WEAPON, false));
         miNewTab.add(newUnitItem("Gun Emplacement", KeyEvent.VK_G, Entity.ETYPE_GUN_EMPLACEMENT, false));
+        miNewTab.add(newUnitItem("Battlefield Support Asset", KeyEvent.VK_S,
+              Entity.ETYPE_BATTLEFIELD_SUPPORT_ASSET, false));
 
         JMenu primitive = new JMenu("Primitive...");
         primitive.add(newUnitItem("Mek", KeyEvent.VK_M, Entity.ETYPE_MEK, true));
@@ -229,7 +240,6 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
         fileMenu.add(createSaveMenu());
         fileMenu.add(createExportMenu());
         fileMenu.add(createPrintMenu());
-        fileMenu.add(createRefreshMenu());
         fileMenu.add(createOptionsMenu());
 
         fileMenu.addSeparator();
@@ -357,6 +367,13 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
             miSwitchToHandheldWeapon.setMnemonic(KeyEvent.VK_H);
             miSwitchToHandheldWeapon.addActionListener(evt -> switchUnitType(Entity.ETYPE_HANDHELD_WEAPON));
             switchUnitTypeMenu.add(miSwitchToHandheldWeapon);
+        }
+
+        if ((entity == null) || (!entity.hasETypeFlag(Entity.ETYPE_BATTLEFIELD_SUPPORT_ASSET))) {
+            final JMenuItem miSwitchToAsset = new JMenuItem("Battlefield Support Asset");
+            miSwitchToAsset.setName("miSwitchToAsset");
+            miSwitchToAsset.addActionListener(evt -> switchUnitType(Entity.ETYPE_BATTLEFIELD_SUPPORT_ASSET));
+            switchUnitTypeMenu.add(miSwitchToAsset);
         }
 
         switchUnitTypeMenu.add(createPrimitiveMenu(entity));
@@ -700,21 +717,49 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
         return printMenu;
     }
 
-    /**
-     * @return the created Refresh menu
-     */
-    private JMenu createRefreshMenu() {
-        final JMenu refreshMenu = new JMenu(resources.getString("refreshMenu.text"));
-        refreshMenu.setName("refreshMenu");
-        refreshMenu.setMnemonic(KeyEvent.VK_F);
+    private JMenu createDatabaseMenu() {
+        final JMenu databaseMenu = new JMenu(resources.getString("databaseMenu.text"));
+        databaseMenu.setName("databaseMenu");
+        databaseMenu.setMnemonic(KeyEvent.VK_D);
 
         final JMenuItem miRefreshUnitCache = new JMenuItem(resources.getString("miRefreshUnitCache.text"));
         miRefreshUnitCache.setName("miRefreshUnitCache");
         miRefreshUnitCache.setMnemonic(KeyEvent.VK_U);
-        miRefreshUnitCache.addActionListener(evt -> MekSummaryCache.refreshUnitData(false));
-        refreshMenu.add(miRefreshUnitCache);
+        miRefreshUnitCache.addActionListener(evt -> refreshUnitCache());
+        databaseMenu.add(miRefreshUnitCache);
 
-        return refreshMenu;
+        final JMenuItem miRebuildUnitCache = new JMenuItem(resources.getString("miRebuildUnitCache.text"));
+        miRebuildUnitCache.setName("miRebuildUnitCache");
+        miRebuildUnitCache.addActionListener(evt -> rebuildUnitCache());
+        databaseMenu.add(miRebuildUnitCache);
+
+        if (CConfig.includeLicense()) {
+            databaseMenu.addSeparator();
+
+            final JMenuItem miSourcebooks = new JMenuItem(resources.getString("miSourcebooks.text"));
+            miSourcebooks.setName("miSourcebooks");
+            miSourcebooks.setMnemonic(KeyEvent.VK_S);
+            miSourcebooks.addActionListener(evt -> SourcebookEditorDialog.showDialog(owner.getFrame()));
+            databaseMenu.add(miSourcebooks);
+        }
+
+        return databaseMenu;
+    }
+
+    private void refreshUnitCache() {
+        MekSummaryCache mekSummaryCache = MekSummaryCache.getInstance();
+        UnitLoadingDialog unitLoadingDialog = new UnitLoadingDialog(owner.getFrame(), mekSummaryCache,
+              resources.getString("miRefreshUnitCache.text"), !mekSummaryCache.isLoading());
+        MekSummaryCache.refreshUnitData(false);
+        unitLoadingDialog.setVisible(true);
+    }
+
+    private void rebuildUnitCache() {
+        MekSummaryCache mekSummaryCache = MekSummaryCache.getInstance();
+        UnitLoadingDialog unitLoadingDialog = new UnitLoadingDialog(owner.getFrame(), mekSummaryCache,
+              resources.getString("miRebuildUnitCache.text"), !mekSummaryCache.isLoading());
+        MekSummaryCache.rebuildUnitData(false);
+        unitLoadingDialog.setVisible(true);
     }
 
     /**
@@ -779,32 +824,59 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
     }
 
     private @Nullable JMenuItem createCConfigMenuItem(final String recentFileName, final int fileNumber) {
-        File recent = new File(recentFileName);
+        String fileName = recentFileName;
+        String entryName = null;
+        if (recentFileName.contains(CConfig.RECENT_ENTRY_DELIMITER)) {
+            String[] parts = recentFileName.split(Pattern.quote(CConfig.RECENT_ENTRY_DELIMITER));
+            fileName = parts[0];
+            if (parts.length > 1) {
+                entryName = parts[1];
+            }
+        }
+
+        File recent = new File(fileName);
+        String displayName = recent.getName();
+        if (entryName != null) {
+            int lastSlash = Math.max(entryName.lastIndexOf('/'), entryName.lastIndexOf('\\'));
+            if (lastSlash != -1) {
+                displayName = entryName.substring(lastSlash + 1);
+            } else {
+                displayName = entryName;
+            }
+        }
+
         String path = recent.getParent();
         String mmlDirectory = System.getProperty("user.dir");
-        if (recentFileName.startsWith(mmlDirectory)) {
+        if (fileName.startsWith(mmlDirectory)) {
             path = path.substring(mmlDirectory.length());
             if (path.length() > 40) {
                 path = path.substring(0, 40) + "...";
             }
         }
 
-        final JMenuItem miCConfig = getMiCConfig(fileNumber, recent, path);
+        final JMenuItem miCConfig = getMiCConfig(fileNumber, displayName, path);
         miCConfig.setName("miCConfig");
         miCConfig.addActionListener(evt -> loadUnitFromFile(fileNumber));
         miCConfig.setMnemonic(48 + fileNumber); // the number itself, i.e. 1, 2, 3 etc.
+
+        String tooltip = fileName;
+        if (entryName != null) {
+            tooltip += " (" + entryName + ")";
+        }
+        miCConfig.setToolTipText(tooltip);
+
         return miCConfig;
     }
 
-    private static JMenuItem getMiCConfig(int fileNumber, File recent, String path) {
+    private static JMenuItem getMiCConfig(int fileNumber, String displayName, String path) {
         String content;
         if (OSUtil.isMac()) {
-            content = "%d. %s ".formatted(fileNumber, recent.getName()) + "(" + path + ")";
+            content = "%d. %s ".formatted(fileNumber, displayName) + "(" + path + ")";
         } else {
             String html = "<HTML><HEAD><STYLE>%s</STYLE></HEAD><BODY>%s</BODY></HTML>";
             String style = ".small { font-size:smaller; color:gray; }";
             content = html.formatted(style, "<NOBR>%d. %s<BR>".formatted(fileNumber,
-                  recent.getName()) + UIUtil.spanCSS("small", path));
+                  displayName) + UIUtil.spanCSS("small", path));
         }
 
         return new JMenuItem(content);
@@ -969,8 +1041,54 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
         reportsMenu.add(createUnitBVBreakdownMenu());
         reportsMenu.add(createUnitCostBreakdownMenu());
         reportsMenu.add(createUnitWeightBreakdownMenu());
+        reportsMenu.add(createUnitTechLevelBreakdownMenu());
 
         return reportsMenu;
+    }
+
+    /**
+     * @return the created Composite Tech Level menu
+     */
+    private JMenu createUnitTechLevelBreakdownMenu() {
+        final JMenu unitTechLevelBreakdownMenu = new JMenu(resources.getString("unitTechLevelBreakdownMenu.text"));
+        unitTechLevelBreakdownMenu.setName("unitTechLevelBreakdownMenu");
+        unitTechLevelBreakdownMenu.setMnemonic(KeyEvent.VK_T);
+
+        final JMenuItem miCurrentUnitTechLevelBreakdown = new JMenuItem(resources.getString("CurrentUnit.text"));
+        miCurrentUnitTechLevelBreakdown.setName("miCurrentUnitTechLevelBreakdown");
+        miCurrentUnitTechLevelBreakdown.setMnemonic(KeyEvent.VK_U);
+        miCurrentUnitTechLevelBreakdown.addActionListener(evt -> showTechLevelBreakdown(owner.getFrame(),
+              owner.getEntity(),
+              currentTechManager()));
+        miCurrentUnitTechLevelBreakdown.setEnabled(isUnitGui());
+        unitTechLevelBreakdownMenu.add(miCurrentUnitTechLevelBreakdown);
+
+        final JMenuItem miUnitTechLevelBreakdownFromCache = new JMenuItem(resources.getString("FromCache.text"));
+        miUnitTechLevelBreakdownFromCache.setName("miUnitTechLevelBreakdownFromCache");
+        miUnitTechLevelBreakdownFromCache.setMnemonic(KeyEvent.VK_C);
+        miUnitTechLevelBreakdownFromCache
+              .addActionListener(evt -> jMenuGetUnitTechLevelBreakdownFromCache_actionPerformed());
+        unitTechLevelBreakdownMenu.add(miUnitTechLevelBreakdownFromCache);
+
+        final JMenuItem miUnitTechLevelBreakdownFromFile = new JMenuItem(resources.getString("FromFile.text"));
+        miUnitTechLevelBreakdownFromFile.setName("miUnitTechLevelBreakdownFromFile");
+        miUnitTechLevelBreakdownFromFile.setMnemonic(KeyEvent.VK_F);
+        miUnitTechLevelBreakdownFromFile
+              .addActionListener(evt -> jMenuGetUnitTechLevelBreakdownFromFile_actionPerformed());
+        unitTechLevelBreakdownMenu.add(miUnitTechLevelBreakdownFromFile);
+
+        return unitTechLevelBreakdownMenu;
+    }
+
+    /**
+     * Returns the tech manager of the unit currently being edited, which carries the year, faction and Variable Tech
+     * Level setting the tech level report should be evaluated with.
+     *
+     * @return The current editor's tech manager, or {@code null} when no unit is being edited
+     */
+    private @Nullable ITechManager currentTechManager() {
+        MegaMekLabMainUI mainUi = getUnitMainUi();
+        return (mainUi == null) ? null : mainUi.getTechManager();
     }
 
     /**
@@ -993,6 +1111,12 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
         miViewForce.setMnemonic(KeyEvent.VK_V);
         miViewForce.addActionListener(evt -> viewForce());
         forceMenu.add(miViewForce);
+
+        final JMenuItem miLoadForceFromFile = new JMenuItem(resources.getString("miLoadForceFromFile.text"));
+        miLoadForceFromFile.setName("miLoadForceFromFile");
+        miLoadForceFromFile.setMnemonic(KeyEvent.VK_L);
+        miLoadForceFromFile.addActionListener(evt -> loadForceFromFile());
+        forceMenu.add(miLoadForceFromFile);
 
         refreshForceMenu();
 
@@ -1117,17 +1241,43 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
         miResetWindowPos.addActionListener(evt -> CConfig.resetWindowPositions());
         helpMenu.add(miResetWindowPos);
 
-        final JMenuItem miAbout = new JMenuItem(resources.getString("miAbout.text"));
-        miAbout.setName("miAbout");
-        miAbout.setMnemonic(KeyEvent.VK_A);
-        miAbout.addActionListener(evt -> aboutAction());
-        helpMenu.add(miAbout);
+        // On Mac, handle the auto-added MegaMekLab menu items
+        if (Desktop.isDesktopSupported()) {
+            Desktop desktop = Desktop.getDesktop();
+            if (desktop.isSupported(Desktop.Action.APP_ABOUT)) {
+                desktop.setAboutHandler(ev -> aboutAction());
+            }
+            if (desktop.isSupported(Desktop.Action.APP_QUIT_HANDLER)) {
+                desktop.setQuitHandler((e, response) -> {
+                    boolean canQuit = owner.exit();
+                    if (canQuit) {
+                        response.performQuit();
+                    } else {
+                        response.cancelQuit();
+                    }
+                });
+            }
+        }
 
         final JMenuItem miRecordSheetImages = new JMenuItem(resources.getString("miRecordSheetImages.text"));
         miRecordSheetImages.setName("miRecordSheetImages");
         miRecordSheetImages.setMnemonic(KeyEvent.VK_R);
         miRecordSheetImages.addActionListener(evt -> recordSheetImagesAction());
         helpMenu.add(miRecordSheetImages);
+
+        helpMenu.addSeparator();
+
+        CopySystemDataAction copySystemDataAction = new CopySystemDataAction(MMLConstants.PROJECT_NAME);
+        helpMenu.add(BugReportHelper.createDialogAction(owner));
+        helpMenu.add(copySystemDataAction);
+
+        helpMenu.addSeparator();
+
+        final JMenuItem miAbout = new JMenuItem(resources.getString("miAbout.text"));
+        miAbout.setName("miAbout");
+        miAbout.setMnemonic(KeyEvent.VK_A);
+        miAbout.addActionListener(evt -> aboutAction());
+        helpMenu.add(miAbout);
 
         return helpMenu;
     }
@@ -1177,6 +1327,35 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
         } finally {
             unitLoadingDialog.dispose();
             viewer.dispose();
+        }
+    }
+
+    private void jMenuGetUnitTechLevelBreakdownFromCache_actionPerformed() {
+        UnitLoadingDialog unitLoadingDialog = new UnitLoadingDialog(owner.getFrame());
+        unitLoadingDialog.setVisible(true);
+        MegaMekLabUnitSelectorDialog viewer = new MegaMekLabUnitSelectorDialog(owner.getFrame(), unitLoadingDialog,
+              false);
+        try {
+            Entity chosenEntity = viewer.getChosenEntity();
+            if (chosenEntity != null) {
+                showTechLevelBreakdown(owner.getFrame(), chosenEntity, null);
+            }
+        } finally {
+            unitLoadingDialog.dispose();
+            viewer.dispose();
+        }
+    }
+
+    private void jMenuGetUnitTechLevelBreakdownFromFile_actionPerformed() {
+        File unitFile = chooseUnitFileToLoad();
+        if (unitFile == null) {
+            return;
+        }
+
+        try {
+            showTechLevelBreakdown(owner.getFrame(), new MekFileParser(unitFile).getEntity(), null);
+        } catch (Exception ex) {
+            PopupMessages.showFileReadError(owner.getFrame(), unitFile.toString(), ex.getMessage());
         }
     }
 
@@ -1262,52 +1441,7 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
 
     // Show data about MegaMekLab
     private void aboutAction() {
-        // make the dialog
-        JDialog dlg = new JDialog(owner.getFrame(), resources.getString("menu.help.about.title"));
-
-        // set up the contents
-        JPanel child = new JPanel();
-        child.setLayout(new BoxLayout(child, BoxLayout.Y_AXIS));
-        child.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-        // set the text up.
-        JLabel version = new JLabel(String.format(resources.getString("menu.help.about.version.format"),
-              MMLConstants.VERSION));
-        JEditorPane body = new JEditorPane();
-        body.setContentType("text/html");
-        body.setEditable(false);
-        body.setOpaque(false);
-        body.setText(resources.getString("menu.help.about.text"));
-
-        body.addHyperlinkListener(e -> {
-            if (e.getEventType() == javax.swing.event.HyperlinkEvent.EventType.ACTIVATED) {
-                if (java.awt.Desktop.isDesktopSupported()) {
-                    try {
-                        java.awt.Desktop.getDesktop().browse(e.getURL().toURI());
-                    } catch (Exception ex) {
-                        logger.error(ex, "Could not open link: {}", e.getURL());
-                    }
-                }
-            }
-        });
-
-        // center everything
-        version.setAlignmentX(Component.CENTER_ALIGNMENT);
-        body.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        // add to child panel
-        child.add(new JLabel("\n"));
-        child.add(version);
-        child.add(new JLabel("\n"));
-        child.add(body);
-
-        // then add child panel to the content pane.
-        dlg.getContentPane().add(child);
-        dlg.setLocationRelativeTo(owner.getFrame());
-        dlg.setModal(true);
-        dlg.setResizable(false);
-        dlg.pack();
-        dlg.setVisible(true);
+        new MMLAboutDialog(owner.getFrame()).show();
     }
 
     // Show how to create fluff images for Record Sheets
@@ -1429,26 +1563,46 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
     }
 
     public void loadUnitFromFile(int fileNumber) {
-        File unitFile;
+        String recentFileName;
         if (fileNumber > 0) {
-            String recentFileName = CConfig.getRecentFile(fileNumber);
+            recentFileName = CConfig.getRecentFile(fileNumber);
             if (recentFileName.isBlank()) {
                 return;
             }
-            unitFile = new File(recentFileName);
         } else {
-            unitFile = chooseUnitFileToLoad();
+            File unitFile = chooseUnitFileToLoad();
             if (unitFile == null) {
                 return;
             }
+            recentFileName = unitFile.toString();
         }
 
-        loadFile(unitFile);
+        loadFile(recentFileName);
+    }
+
+    public void loadFile(String unitFileName) {
+        File unitFile;
+        String entryName = null;
+
+        if (unitFileName.contains(CConfig.RECENT_ENTRY_DELIMITER)) {
+            String[] parts = unitFileName.split(Pattern.quote(CConfig.RECENT_ENTRY_DELIMITER));
+            unitFile = new File(parts[0]);
+            if (parts.length > 1) {
+                entryName = parts[1];
+            }
+        } else {
+            unitFile = new File(unitFileName);
+        }
+        loadFile(unitFile, entryName);
     }
 
     public void loadFile(File unitFile) {
+        loadFile(unitFile, null);
+    }
+
+    public void loadFile(File unitFile, String entryName) {
         try {
-            Entity loadedUnit = new MekFileParser(unitFile).getEntity();
+            Entity loadedUnit = new MekFileParser(unitFile, entryName).getEntity();
 
             if (loadedUnit == null) {
                 throw new Exception();
@@ -1456,7 +1610,7 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
 
             warnOnInvalid(loadedUnit);
 
-            newRecentUnit(unitFile.toString());
+            newRecentUnit(unitFile.toString(), entryName);
             if (owner instanceof MegaMekLabTabbedUI tabbedUi) {
                 tabbedUi.addUnit(loadedUnit, unitFile.toString(), true);
                 refresh();
@@ -1476,8 +1630,8 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
      *
      * @param latestUnit The filename of the new most recent unit.
      */
-    private void newRecentUnit(String latestUnit) {
-        CConfig.setMostRecentFile(latestUnit);
+    private void newRecentUnit(String latestUnit, String entryName) {
+        CConfig.setMostRecentFile(latestUnit, entryName);
         createFileMenu();
     }
 
@@ -1556,8 +1710,39 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
         }
     }
 
+    /**
+     * Opens the composite tech level report for the given unit. The report is evaluated with the year, faction and
+     * Variable Tech Level setting of the given tech manager; when no tech manager is available, as for a unit loaded
+     * from the cache or from a file, the unit's own introduction year and tech faction are used together with the
+     * Variable Tech Level setting from the MegaMekLab configuration.
+     *
+     * @param frame       The parent frame of the dialog
+     * @param entity      The unit to report on; nothing happens when this is {@code null}
+     * @param techManager The tech manager of the unit being edited, or {@code null} when the unit is not being edited
+     */
+    public static void showTechLevelBreakdown(final JFrame frame, final @Nullable Entity entity,
+          final @Nullable ITechManager techManager) {
+        if (entity == null) {
+            return;
+        }
+
+        boolean useVariableTechLevel = (techManager != null)
+              ? techManager.useVariableTechLevel()
+              : CConfig.getBooleanParam(CConfig.TECH_PROGRESSION);
+        int evaluationYear = (techManager != null) ? techManager.getGameYear() : entity.getYear();
+        // A unit opened from the cache or a file has no editor, so fall back to the faction it was designed
+        // with rather than no faction, which would drop faction-specific availability dates.
+        Faction techFaction = (techManager != null) ? techManager.getTechFaction() : entity.getTechFaction();
+
+        new TechLevelDisplayDialog(frame, entity, techFaction, evaluationYear, useVariableTechLevel).setVisible(true);
+    }
+
     public void viewForce() {
         ForceBuildUI.showWindow();
+    }
+
+    public void loadForceFromFile() {
+        ForceBuildUI.loadForceFromFile(owner.getFrame());
     }
 
     public void addUnitToForce(Entity entity) {

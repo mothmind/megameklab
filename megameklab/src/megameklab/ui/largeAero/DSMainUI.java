@@ -36,7 +36,6 @@ import java.awt.BorderLayout;
 import java.util.List;
 import javax.swing.JDialog;
 
-import megamek.common.SimpleTechLevel;
 import megamek.common.TechConstants;
 import megamek.common.equipment.EquipmentType;
 import megamek.common.equipment.IArmorState;
@@ -49,13 +48,15 @@ import megamek.common.units.Entity;
 import megamek.common.units.EntityMovementMode;
 import megamek.common.units.SmallCraft;
 import megamek.common.verifier.TestEntity;
-import megamek.common.verifier.TestSmallCraft;
 import megamek.logging.MMLogger;
 import megameklab.ui.MegaMekLabMainUI;
 import megameklab.ui.dialog.FloatingEquipmentDatabaseDialog;
 import megameklab.ui.generalUnit.AbstractEquipmentTab;
 import megameklab.ui.generalUnit.FluffTab;
+import megameklab.ui.generalUnit.AnalysisTab;
 import megameklab.ui.generalUnit.PreviewTab;
+import megameklab.ui.generalUnit.AvailabilityTab;
+import megameklab.util.CConfig;
 import megameklab.ui.generalUnit.QuirksTab;
 import megameklab.ui.generalUnit.StatusBar;
 import megameklab.ui.generalUnit.TransportTab;
@@ -72,10 +73,12 @@ public class DSMainUI extends MegaMekLabMainUI {
     private DSStructureTab structureTab;
     private AbstractEquipmentTab equipmentTab;
     private PreviewTab previewTab;
+    private AnalysisTab analysisTab;
     private LABuildTab buildTab;
     private TransportTab transportTab;
     private StatusBar statusbar;
     private QuirksTab quirksTab;
+    private AvailabilityTab availabilityTab;
     private FluffTab fluffTab;
     private FloatingEquipmentDatabaseDialog floatingEquipmentDatabase;
 
@@ -169,16 +172,7 @@ public class DSMainUI extends MegaMekLabMainUI {
             newUnit.setSpheroid(false);
             newUnit.setMovementMode(EntityMovementMode.AERODYNE);
         } else {
-            newUnit.setChassis(oldUnit.getChassis());
-            newUnit.setModel(oldUnit.getModel());
-            newUnit.setYear(Math.max(oldUnit.getYear(),
-                  newUnit.getConstructionTechAdvancement().getIntroductionDate()));
-            newUnit.setSource(oldUnit.getSource());
-            newUnit.setManualBV(oldUnit.getManualBV());
-            SimpleTechLevel lvl = SimpleTechLevel.max(newUnit.getStaticTechLevel(),
-                  SimpleTechLevel.convertCompoundToSimple(oldUnit.getTechLevel()));
-            newUnit.setTechLevel(lvl.getCompoundTechLevel(oldUnit.isClan()));
-            newUnit.setMixedTech(oldUnit.isMixedTech());
+            copyUnitBasics(newUnit, oldUnit);
             newUnit.setSpheroid(oldUnit.isSpheroid());
             newUnit.setMovementMode(oldUnit.getMovementMode());
         }
@@ -199,12 +193,14 @@ public class DSMainUI extends MegaMekLabMainUI {
         structureTab = new DSStructureTab(this);
 
         previewTab = new PreviewTab(this);
+        analysisTab = new AnalysisTab(this);
 
         statusbar = new StatusBar(this);
         equipmentTab = new LAEquipmentTab(this);
         buildTab = new LABuildTab(this);
         transportTab = new TransportTab(this);
         quirksTab = new QuirksTab(this);
+        availabilityTab = new AvailabilityTab(this);
         fluffTab = new FluffTab(this);
         structureTab.addRefreshedListener(this);
         equipmentTab.addRefreshedListener(this);
@@ -213,6 +209,7 @@ public class DSMainUI extends MegaMekLabMainUI {
         statusbar.addRefreshedListener(this);
         fluffTab.setRefreshedListener(this);
         quirksTab.addRefreshedListener(this);
+        availabilityTab.addRefreshedListener(this);
 
         configPane.addTab("Structure/Armor", new TabScrollPane(structureTab));
         configPane.addTab("Equipment", equipmentTab);
@@ -220,7 +217,11 @@ public class DSMainUI extends MegaMekLabMainUI {
         configPane.addTab("Transport Bays", new TabScrollPane(transportTab));
         configPane.addTab("Fluff", new TabScrollPane(fluffTab));
         configPane.addTab("Quirks", new TabScrollPane(quirksTab, quirksTab.refreshOnShow));
+        if (CConfig.showAvailabilityTab()) {
+            configPane.addTab("Availability", new TabScrollPane(availabilityTab, availabilityTab.refreshOnShow));
+        }
         configPane.addTab("Preview", previewTab);
+        configPane.addTab("Analysis", analysisTab);
 
         add(configPane, BorderLayout.CENTER);
         add(statusbar, BorderLayout.SOUTH);
@@ -244,8 +245,10 @@ public class DSMainUI extends MegaMekLabMainUI {
         equipmentTab.refresh();
         buildTab.refresh();
         quirksTab.refresh();
+        availabilityTab.refresh();
         fluffTab.refresh();
         previewTab.refresh();
+        analysisTab.refresh();
         floatingEquipmentDatabase.refresh();
         refreshHeader();
     }
@@ -288,6 +291,7 @@ public class DSMainUI extends MegaMekLabMainUI {
     public void refreshPreview() {
         super.refreshPreview();
         previewTab.refresh();
+        analysisTab.refresh();
     }
 
     @Override

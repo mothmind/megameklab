@@ -73,17 +73,18 @@ public class MMLFileDropTransferHandler extends TransferHandler {
                 return true;
             }
 
-            var file = files.get(0);
+            var file = files.getFirst();
             var name = file.getName();
 
-            if (name.toLowerCase().endsWith(".mtf") || name.toLowerCase().endsWith(".blk")) {
+            if (name.toLowerCase().endsWith(".mtf") || name.toLowerCase().endsWith(".blk")
+                  || name.toLowerCase().endsWith(".bfs")) {
                 owner.getMMLMenuBar().loadFile(file);
                 return true;
             } else if (name.toLowerCase().endsWith(".mul")) {
                 MULManager.processMULFile(file, owner.getFrame());
                 return true;
             } else {
-                logger.errorDialog("Import error", "Can only open files of type .mtf, .blk, and .mul");
+                logger.errorDialog("Import error", "Can only open files of type .mtf, .blk, .bfs, and .mul");
                 return false;
             }
 

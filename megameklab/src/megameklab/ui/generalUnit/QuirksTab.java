@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2023-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMekLab.
  *
@@ -53,9 +53,11 @@ import java.util.List;
 import java.util.Map;
 import javax.swing.BorderFactory;
 import javax.swing.JPanel;
+import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JViewport;
+import javax.swing.SwingUtilities;
 
 import megamek.client.ui.clientGUI.DialogOptionListener;
 import megamek.client.ui.panels.DialogOptionComponentYPanel;
@@ -82,6 +84,7 @@ public class QuirksTab extends ITab implements DialogOptionListener {
     private JPanel negativeQuirksPanel;
     private JPanel weaponQuirksPanel;
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     private record GroupInfo(String title, List<DialogOptionComponentYPanel> quirks) {
     }
 
@@ -159,25 +162,28 @@ public class QuirksTab extends ITab implements DialogOptionListener {
         // Wrap panels in scroll panes
         JScrollPane positiveScrollPane = new JScrollPane(positiveQuirksPanel);
         positiveScrollPane.setBorder(null);
+        configureInnerScroll(positiveScrollPane);
         JScrollPane negativeScrollPane = new JScrollPane(negativeQuirksPanel);
         negativeScrollPane.setBorder(null);
+        configureInnerScroll(negativeScrollPane);
         JScrollPane weaponScrollPane = new JScrollPane(weaponQuirksContainer);
         weaponScrollPane.setBorder(null);
+        configureInnerScroll(weaponScrollPane);
 
         // Create nested split panes for three-way horizontal split
         JSplitPane leftSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
-            positiveScrollPane, negativeScrollPane);
+              positiveScrollPane, negativeScrollPane);
         leftSplitPane.setResizeWeight(0.5);
 
         JSplitPane mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
-            leftSplitPane, weaponScrollPane);
+              leftSplitPane, weaponScrollPane);
         mainSplitPane.setResizeWeight(0.67);
 
         // Add the split pane to the main panel
         setLayout(new GridBagLayout());
         add(mainSplitPane, new GridBagConstraints(0, 0, 1, 1, 1.0, 1.0,
-            GridBagConstraints.NORTHWEST, GridBagConstraints.BOTH,
-            new Insets(0, 0, 0, 0), 0, 0));
+              GridBagConstraints.NORTHWEST, GridBagConstraints.BOTH,
+              new Insets(0, 0, 0, 0), 0, 0));
 
         validate();
         repaint();
@@ -202,6 +208,38 @@ public class QuirksTab extends ITab implements DialogOptionListener {
                 }
             });
         }
+    }
+
+    /**
+     * Sets a usable wheel step on an inner quirk scroll pane and forwards the wheel event to the enclosing tab scroll
+     * pane when this pane cannot scroll further in the wheel's direction.
+     *
+     * <p>The quirk lists sit in inner scroll panes nested inside the outer tab scroll pane. By default an inner scroll
+     * pane swallows mouse-wheel events over its content even when it has nothing left to scroll, so the outer tab never
+     * scrolls. Forwarding at the scroll limit lets the wheel work no matter where the cursor sits.</p>
+     */
+    private static void configureInnerScroll(JScrollPane scrollPane) {
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        scrollPane.addMouseWheelListener(event -> {
+            // Use precise rotation: high-resolution wheels and trackpads can report 0 from getWheelRotation()
+            // while still producing a non-zero precise value, which would misread the scroll direction.
+            double wheelRotation = event.getPreciseWheelRotation();
+            if (wheelRotation == 0.0) {
+                return;
+            }
+            JScrollBar verticalBar = scrollPane.getVerticalScrollBar();
+            boolean scrollingUp = wheelRotation < 0;
+            boolean canScroll = verticalBar.isVisible() && (scrollingUp
+                  ? verticalBar.getValue() > verticalBar.getMinimum()
+                  : verticalBar.getValue() + verticalBar.getVisibleAmount() < verticalBar.getMaximum());
+            if (!canScroll) {
+                JScrollPane outerScrollPane = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class,
+                      scrollPane);
+                if (outerScrollPane != null) {
+                    outerScrollPane.dispatchEvent(SwingUtilities.convertMouseEvent(scrollPane, event, outerScrollPane));
+                }
+            }
+        });
     }
 
     /**
@@ -237,7 +275,7 @@ public class QuirksTab extends ITab implements DialogOptionListener {
     private void collectWeaponQuirks(JPanel weaponContainer, List<DialogOptionComponentYPanel> allQuirks) {
         List<Mounted<?>> equipmentList = new ArrayList<>(getEntity().getWeaponList());
         for (Mounted<?> miscItem : getEntity().getMisc()) {
-            if (miscItem.getType().hasFlag(MiscType.F_CLUB)) {
+            if (miscItem.getType().hasFlag(MiscType.F_CLUB) || miscItem.getType().hasFlag(MiscType.F_SHIELD)) {
                 equipmentList.add(miscItem);
             }
         }
@@ -407,6 +445,7 @@ public class QuirksTab extends ITab implements DialogOptionListener {
     /**
      * Gets the width of the visible area (viewport or panel itself).
      */
+    @Deprecated(since = "0.51.0", forRemoval = true)
     private int getVisibleContainerWidth() {
         Container parent = getParent();
         if (parent instanceof JViewport) {
@@ -421,8 +460,7 @@ public class QuirksTab extends ITab implements DialogOptionListener {
      */
     private int calculateAvailableWidthInPanel(JPanel panel) {
         Container scrollPaneParent = panel.getParent();
-        if (scrollPaneParent instanceof JViewport) {
-            JViewport viewport = (JViewport) scrollPaneParent;
+        if (scrollPaneParent instanceof JViewport viewport) {
             int viewportWidth = viewport.getWidth();
             Insets panelInsets = panel.getInsets();
             return viewportWidth - panelInsets.left - panelInsets.right;

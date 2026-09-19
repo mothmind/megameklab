@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2017-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMekLab.
  *
@@ -32,12 +32,12 @@
  */
 package megameklab.ui.infantry;
 
+import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import javax.swing.Box;
-import javax.swing.BoxLayout;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.RowFilter;
@@ -51,12 +51,11 @@ import javax.swing.table.TableRowSorter;
 
 import megamek.client.ui.models.XTableColumnModel;
 import megamek.common.TechAdvancement;
-import megamek.common.units.Infantry;
+import megamek.common.units.ConvInfantry;
 import megamek.common.verifier.TestInfantry;
 import megameklab.ui.EntitySource;
 import megameklab.ui.listeners.InfantryBuildListener;
 import megameklab.ui.util.IView;
-import megameklab.util.InfantryUtil;
 
 /**
  * View for selecting infantry specializations, including Xeno-Planetary conditions training (XCT).
@@ -103,9 +102,9 @@ public class CISpecializationView extends IView implements TableModelListener {
 
         model.addTableModelListener(this);
 
-        setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
-        add(scroll);
-        add(Box.createHorizontalGlue());
+        setLayout(new BorderLayout());
+        add(Box.createVerticalStrut(5), BorderLayout.PAGE_START);
+        add(scroll, BorderLayout.CENTER);
     }
 
     public void refresh() {
@@ -119,11 +118,11 @@ public class CISpecializationView extends IView implements TableModelListener {
                 SpecializationModel specModel = entry.getModel();
                 TechAdvancement techAdvancement = specModel.getTechAdvancement(entry.getIdentifier());
                 final int bitFlag = 1 << entry.getIdentifier();
-                if ((bitFlag == Infantry.TAG_TROOPS)
+                if ((bitFlag == ConvInfantry.TAG_TROOPS)
                       && (TestInfantry.maxSecondaryWeapons(getInfantry()) < 2)) {
                     return false;
                 }
-                if (((bitFlag == Infantry.PARATROOPS) || (bitFlag == Infantry.MOUNTAIN_TROOPS))
+                if (((bitFlag == ConvInfantry.PARATROOPS) || (bitFlag == ConvInfantry.MOUNTAIN_TROOPS))
                       && !getInfantry().getMovementMode().isLegInfantry()) {
                     return false;
                 }
@@ -141,30 +140,30 @@ public class CISpecializationView extends IView implements TableModelListener {
 
     private class SpecializationModel extends AbstractTableModel {
         // Don't include SCUBA
-        private final String[][] rows = new String[Infantry.NUM_SPECIALIZATIONS - 1][];
-        private final TechAdvancement[] specTAs = new TechAdvancement[Infantry.NUM_SPECIALIZATIONS];
-        private final String[] tooltips = new String[Infantry.NUM_SPECIALIZATIONS - 1];
+        private final String[][] rows = new String[ConvInfantry.NUM_SPECIALIZATIONS - 1][];
+        private final TechAdvancement[] specTAs = new TechAdvancement[ConvInfantry.NUM_SPECIALIZATIONS];
+        private final String[] tooltips = new String[ConvInfantry.NUM_SPECIALIZATIONS - 1];
 
         SpecializationModel() {
             super();
             for (int i = 0; i < rows.length; i++) {
                 int spec = 1 << i;
                 String[] fields = new String[4];
-                fields[0] = Infantry.getSpecializationName(spec);
-                if ((spec == Infantry.PARATROOPS) || (spec == Infantry.TAG_TROOPS)
-                      || (spec == Infantry.XCT)) {
+                fields[0] = ConvInfantry.getSpecializationName(spec);
+                if ((spec == ConvInfantry.PARATROOPS) || (spec == ConvInfantry.TAG_TROOPS)
+                      || (spec == ConvInfantry.XCT)) {
                     fields[1] = "-";
                     fields[2] = "-";
                     fields[3] = "-";
-                } else if (spec == Infantry.MARINES) {
+                } else if (spec == ConvInfantry.MARINES) {
                     fields[1] = "10";
                     fields[2] = "4";
                     fields[3] = "2";
-                } else if (spec == Infantry.MOUNTAIN_TROOPS) {
+                } else if (spec == ConvInfantry.MOUNTAIN_TROOPS) {
                     fields[1] = "10";
                     fields[2] = "2";
                     fields[3] = "1";
-                } else if (spec == Infantry.PARAMEDICS) {
+                } else if (spec == ConvInfantry.PARAMEDICS) {
                     fields[1] = "10";
                     fields[2] = "4";
                     fields[3] = "1";
@@ -174,18 +173,18 @@ public class CISpecializationView extends IView implements TableModelListener {
                     fields[3] = "0";
                 }
                 rows[i] = fields;
-                if ((Infantry.COMBAT_ENGINEERS & spec) != 0) {
-                    specTAs[i] = Infantry.getCombatEngineerTA();
-                } else if (Infantry.MARINES == spec) {
-                    specTAs[i] = Infantry.getMarineTA();
-                } else if (Infantry.MOUNTAIN_TROOPS == spec) {
-                    specTAs[i] = Infantry.getMountainTA();
-                } else if (Infantry.PARATROOPS == spec) {
-                    specTAs[i] = Infantry.getParatrooperTA();
-                } else if (Infantry.PARAMEDICS == spec) {
-                    specTAs[i] = Infantry.getParamedicTA();
-                } else if (Infantry.TAG_TROOPS == spec) {
-                    specTAs[i] = Infantry.getTAGTroopsTA();
+                if ((ConvInfantry.COMBAT_ENGINEERS & spec) != 0) {
+                    specTAs[i] = ConvInfantry.getCombatEngineerTA();
+                } else if (ConvInfantry.MARINES == spec) {
+                    specTAs[i] = ConvInfantry.getMarineTA();
+                } else if (ConvInfantry.MOUNTAIN_TROOPS == spec) {
+                    specTAs[i] = ConvInfantry.getMountainTA();
+                } else if (ConvInfantry.PARATROOPS == spec) {
+                    specTAs[i] = ConvInfantry.getParatrooperTA();
+                } else if (ConvInfantry.PARAMEDICS == spec) {
+                    specTAs[i] = ConvInfantry.getParamedicTA();
+                } else if (ConvInfantry.TAG_TROOPS == spec) {
+                    specTAs[i] = ConvInfantry.getTAGTroopsTA();
                 } else {
                     specTAs[i] = getInfantry().getConstructionTechAdvancement();
                 }
@@ -250,19 +249,13 @@ public class CISpecializationView extends IView implements TableModelListener {
             }
             // If we have selected a specialization that does not allow two support weapons
             // we need to remove TAG if present.
-            if ((Infantry.TAG_TROOPS != spec)
-                  && getInfantry().hasSpecialization(Infantry.TAG_TROOPS)
+            if ((ConvInfantry.TAG_TROOPS != spec)
+                  && getInfantry().hasSpecialization(ConvInfantry.TAG_TROOPS)
                   && TestInfantry.maxSecondaryWeapons(getInfantry()) < 2) {
-                InfantryUtil.replaceMainWeapon(getInfantry(), null, true);
-                getInfantry().setSecondaryWeaponsPerSquad(0);
-                getInfantry().setSpecializations(getInfantry().getSpecializations() & ~Infantry.TAG_TROOPS);
-            } else if (TestInfantry.maxSecondaryWeapons(getInfantry()) > getInfantry().getSecondaryWeaponsPerSquad()) {
-                getInfantry().setSecondaryWeaponsPerSquad(TestInfantry.maxSecondaryWeapons(getInfantry()));
-                if (getInfantry().getSecondaryWeaponsPerSquad() == 0) {
-                    InfantryUtil.replaceMainWeapon(getInfantry(), null, true);
-                }
+                getInfantry().setSpecializations(getInfantry().getSpecializations() & ~ConvInfantry.TAG_TROOPS);
             }
             fireTableCellUpdated(row, col);
+            refresh();
         }
 
         public int getColumnWidth(int c) {

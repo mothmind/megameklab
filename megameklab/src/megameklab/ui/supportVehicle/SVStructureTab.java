@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2019-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMekLab.
  *
@@ -73,6 +73,7 @@ import megamek.common.verifier.TestEntity;
 import megamek.common.verifier.TestSupportVehicle;
 import megamek.logging.MMLogger;
 import megameklab.ui.EntitySource;
+import megameklab.ui.battlefieldSupport.BFSLinkedEditor;
 import megameklab.ui.generalUnit.BasicInfoView;
 import megameklab.ui.generalUnit.FuelView;
 import megameklab.ui.generalUnit.IconView;
@@ -188,12 +189,14 @@ public class SVStructureTab extends ITab implements SVBuildListener {
         panFuel.setBorder(BorderFactory.createTitledBorder("Fuel"));
         panChassisMod.setBorder(BorderFactory.createTitledBorder("Chassis Modifications"));
         panCrew.setBorder(BorderFactory.createTitledBorder("Crew and Quarters"));
+        panBasicInfo.showBattlefieldSupportAssetControl(eSource instanceof BFSLinkedEditor);
     }
 
     public void refresh() {
         removeAllListeners();
 
         panBasicInfo.setFromEntity(getSV());
+        syncBattlefieldSupportControl();
         panChassis.setFromEntity(getSV());
         panMovement.setFromEntity(getSV());
         refreshFuel();
@@ -203,6 +206,26 @@ public class SVStructureTab extends ITab implements SVBuildListener {
         iconView.setFromEntity(getEntity());
 
         addAllListeners();
+    }
+
+    /** Syncs the Basic-Info BFS toggle to the editor's current enable state and motive eligibility. */
+    private void syncBattlefieldSupportControl() {
+        if (eSource instanceof BFSLinkedEditor bfs) {
+            boolean eligible = bfs.isBattlefieldSupportAssetMotiveEligible();
+            if (!eligible && bfs.isBattlefieldSupportAssetLinked()) {
+                // The base's motive is no longer a legal asset motive; auto-disable the asset.
+                bfs.setBattlefieldSupportAssetLinked(false);
+            }
+            panBasicInfo.setBattlefieldSupportAssetControlEnabled(eligible);
+            panBasicInfo.setBattlefieldSupportAssetSelected(bfs.isBattlefieldSupportAssetLinked());
+        }
+    }
+
+    @Override
+    public void battlefieldSupportAssetToggled(boolean enabled) {
+        if (eSource instanceof BFSLinkedEditor bfs) {
+            bfs.setBattlefieldSupportAssetLinked(enabled);
+        }
     }
 
     public ITechManager getTechManager() {
@@ -236,6 +259,7 @@ public class SVStructureTab extends ITab implements SVBuildListener {
 
     public void addRefreshedListener(RefreshListener l) {
         refresh = l;
+        iconView.setRefreshedListener(l);
     }
 
     /**
@@ -297,6 +321,12 @@ public class SVStructureTab extends ITab implements SVBuildListener {
     @Override
     public void sourceChanged(String source) {
         getSV().setSource(source);
+        refresh.refreshPreview();
+    }
+
+    @Override
+    public void publishedChanged(String published) {
+        getSV().setPublished(published);
         refresh.refreshPreview();
     }
 
@@ -711,6 +741,7 @@ public class SVStructureTab extends ITab implements SVBuildListener {
             }
         }
         panChassis.setFromEntity(getSV());
+        panCrew.setFromEntity(getSV());
         panSummary.refresh();
         refresh.refreshStatus();
         refresh.refreshPreview();
@@ -917,7 +948,7 @@ public class SVStructureTab extends ITab implements SVBuildListener {
         } else if (!hasMod && getSV().hasDNICockpitMod()) {
             for (MiscMounted mounted : getSV().getMisc()) {
                 if (mounted.getType().hasFlag(MiscType.F_DNI_COCKPIT_MOD)) {
-                    getSV().removeMisc(mounted.getType().getInternalName());
+                    getSV().removeMisc(mounted.getName());
                     break;
                 }
             }

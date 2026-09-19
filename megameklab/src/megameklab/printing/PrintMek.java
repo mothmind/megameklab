@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2017-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMekLab.
  *
@@ -54,6 +54,7 @@ import megamek.common.equipment.EquipmentType;
 import megamek.common.equipment.MiscMounted;
 import megamek.common.equipment.MiscType;
 import megamek.common.equipment.Mounted;
+import megamek.common.equipment.WeaponType;
 import megamek.common.units.BipedMek;
 import megamek.common.units.Entity;
 import megamek.common.units.LAMPilot;
@@ -66,10 +67,6 @@ import megameklab.util.CConfig;
 import megameklab.util.RSScale;
 import megameklab.util.UnitUtil;
 import org.apache.batik.anim.dom.SVGDOMImplementation;
-import org.apache.batik.bridge.BridgeContext;
-import org.apache.batik.bridge.DocumentLoader;
-import org.apache.batik.bridge.GVTBuilder;
-import org.apache.batik.bridge.UserAgentAdapter;
 import org.apache.batik.dom.util.SAXDocumentFactory;
 import org.apache.batik.util.SVGConstants;
 import org.apache.batik.util.XMLResourceDescriptor;
@@ -78,7 +75,6 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.w3c.dom.svg.SVGDocument;
 import org.w3c.dom.svg.SVGElement;
 import org.w3c.dom.svg.SVGPathElement;
 import org.w3c.dom.svg.SVGRectElement;
@@ -242,7 +238,7 @@ public class PrintMek extends PrintEntity {
 
     private void printShields() {
         for (MiscMounted m : mek.getMisc()) {
-            if (m.getType().isShield()) {
+            if (m.getType().hasFlag(MiscType.F_SHIELD)) {
                 String loc = mek.getLocationAbbr(m.getLocation());
                 Element element = getSVGDocument().getElementById(ARMOR_DIAGRAM + loc);
                 if (null != element) {
@@ -265,7 +261,7 @@ public class PrintMek extends PrintEntity {
                           "shield DC",
                           loc,
                           false
-                          );
+                    );
                 }
                 element = getSVGDocument().getElementById(SHIELD_DA + loc);
                 if (null != element) {
@@ -353,9 +349,22 @@ public class PrintMek extends PrintEntity {
 
     @Override
     protected void drawStructure() {
-        if (mek.getStructureType() != EquipmentType.T_STRUCTURE_STANDARD) {
+        if (mek.isFrankenMek()) {
+            String structureName = getFrankenMekRecordSheetStructureName();
+            if (structureName != null) {
+                setTextField(STRUCTURE_TYPE, structureName);
+            }
+        } else if (mek.getStructureType() != EquipmentType.T_STRUCTURE_STANDARD) {
             setTextField(STRUCTURE_TYPE, EquipmentType.getStructureTypeName(mek.getStructureType()));
         }
+    }
+
+    private @Nullable String getFrankenMekRecordSheetStructureName() {
+        String structureName = mek.getFrankenMekStructureDisplayName();
+        if (structureName.equals(EquipmentType.getStructureTypeName(EquipmentType.T_STRUCTURE_STANDARD))) {
+            return null;
+        }
+        return structureName;
     }
 
     private boolean loadArmorPips(int loc, boolean rear) {
@@ -385,31 +394,41 @@ public class PrintMek extends PrintEntity {
               mek.getArmorType(loc));
     }
 
-    private boolean loadISPips() {
-        boolean result = false;
+    private boolean[] loadISPips() {
+        boolean[] loaded = new boolean[mek.locations()];
         for (int loc = 0; loc < mek.locations(); loc++) {
-            if (!loadISPips(loc)) {
-                return false;
-            }
-            if (!result) {
-                result = true;
+            loaded[loc] = loadISPips(loc);
+            if (loaded[loc]) {
+                hideDefaultStructurePips(loc);
             }
         }
-        if (result) {
-            hideElement(STRUCTURE_PIPS);
+        return loaded;
+    }
+
+    private void hideDefaultStructurePips(int loc) {
+        if (loc == Mek.LOC_HEAD) {
+            hideElement(IS_PIPS_HD);
+            hideElement(IS_PIPS_HD_SH);
+        } else {
+            hideElement(IS_PIPS + mek.getLocationAbbr(loc));
         }
-        return result;
+    }
+
+    private boolean useSuperHeavyHeadPips() {
+        return mek.isSuperHeavy() || (mek.getOInternal(Mek.LOC_HEAD) > 3);
     }
 
     private boolean loadISPips(int loc) {
         final String locAbbr = mek.getLocationAbbr(loc);
+        int structureTonnage = mek.isFrankenMek() ? mek.getFrankenMekStructureTonnage(loc) : (int) mek.getWeight();
+        int structureType = mek.isFrankenMek() ? mek.getFrankenMekStructureType(loc) : mek.getStructureType();
         NodeList nl = loadPipSVG(String.format("data/images/recordsheets/biped_pips/BipedIS%d_%s.svg",
-              (int) mek.getWeight(), locAbbr));
+              structureTonnage, locAbbr));
         if (null == nl) {
             return false;
         }
         return copyPipPattern(nl, CANON_STRUCTURE_PIPS, getStructureDamage(loc), "pip structure", locAbbr, false,
-              true, mek.getStructureType());
+              true, structureType);
     }
 
     private boolean copyPipPattern(NodeList nl, String parentName, int damage, String className, String location,
@@ -443,7 +462,8 @@ public class PrintMek extends PrintEntity {
             if (importedNode instanceof SVGElement el) {
                 if (options.fancyPips() && el instanceof SVGPathElement oldPip) {
                     el = (SVGElement) makeFancy(oldPip, structure, type);
-                    el.setAttribute(SVGConstants.SVG_CLASS_ATTRIBUTE, oldPip.getAttribute(SVGConstants.SVG_CLASS_ATTRIBUTE));
+                    el.setAttribute(SVGConstants.SVG_CLASS_ATTRIBUTE,
+                          oldPip.getAttribute(SVGConstants.SVG_CLASS_ATTRIBUTE));
                     el.setAttribute("loc", oldPip.getAttribute("loc"));
                     if (oldPip.hasAttribute("rear")) {
                         el.setAttribute("rear", oldPip.getAttribute("rear"));
@@ -486,6 +506,30 @@ public class PrintMek extends PrintEntity {
         return doc.getElementsByTagName(SVGConstants.SVG_PATH_TAG);
     }
 
+    /**
+     * Fills in the numeral values for armor and structure levels
+     */
+    @Override
+    void writeArmorStructureTextFields() {
+        final String FORMAT = "( %d )";
+        boolean hasHybridFrankenMekStructure = mek.hasHybridFrankenMekStructure();
+        for (int loc = firstArmorLocation(); loc < getEntity().locations(); loc++) {
+            String locationAbbr = mek.getLocationAbbr(loc);
+            setTextField(TEXT_ARMOR + locationAbbr,
+                String.format(FORMAT, getEntity().getOArmor(loc)));
+            setTextField(TEXT_IS + locationAbbr,
+                String.format(FORMAT, getEntity().getOInternal(loc)));
+
+            if (hasHybridFrankenMekStructure) {
+                int structureType = mek.getFrankenMekStructureType(loc);
+                if (structureType != EquipmentType.T_STRUCTURE_STANDARD) {
+                    setTextField(TEXT_IS_TYPE + locationAbbr,
+                        EquipmentType.getStructureTypeAbbrev(structureType));
+                }
+            }
+        }
+    }
+
     // Mek armor and structure pips require special handling for rear armor and
     // superheavy head armor/IS
     @Override
@@ -494,7 +538,8 @@ public class PrintMek extends PrintEntity {
         boolean alternateMethod = useAlternateArmorGrouping();
         boolean fancyPips = options.fancyPips();
         Element element;
-        boolean structComplete = !alternateMethod && (mek instanceof BipedMek) && loadISPips();
+        boolean[] structureComplete = (!alternateMethod && (mek instanceof BipedMek))
+            ? loadISPips() : new boolean[mek.locations()];
         for (int loc = 0; loc < mek.locations(); loc++) {
             boolean frontComplete = false;
             boolean rearComplete = false;
@@ -506,7 +551,7 @@ public class PrintMek extends PrintEntity {
                 if (!mek.isSuperHeavy() && (mek instanceof BipedMek) && !alternateMethod) {
                     frontComplete = loadArmorPips(loc, false);
                     rearComplete = !mek.hasRearArmor(loc) || loadArmorPips(loc, true);
-                    if (frontComplete && rearComplete) {
+                    if (frontComplete && rearComplete && structureComplete[loc]) {
                         continue;
                     }
                 }
@@ -525,18 +570,20 @@ public class PrintMek extends PrintEntity {
                       "armor",
                       mek.getLocationAbbr(loc),
                       false
-                      );
+                );
             }
-            if (!structComplete) {
+            if (!structureComplete[loc]) {
                 if ((loc == Mek.LOC_HEAD)) {
-                    final String prefixHeadPip = mek.isSuperHeavy() ? IS_PIP_HD_SH_PREFIX : IS_PIP_HD_PREFIX;
+                    final String prefixHeadPip = useSuperHeavyHeadPips() ? IS_PIP_HD_SH_PREFIX : IS_PIP_HD_PREFIX;
 
                     // replace head pips with shaped pips
                     if (fancyPips) {
                         for (int i = 1; i <= mek.getOInternal(loc); i++) {
                             element = getElementById(prefixHeadPip + i);
                             if (element instanceof SVGPathElement oldPip) {
-                                makeFancy(oldPip, true, mek.getStructureType());
+                                makeFancy(oldPip, true,
+                                      mek.isFrankenMek() ? mek.getFrankenMekStructureType(loc)
+                                            : mek.getStructureType());
                             }
                         }
                     }
@@ -555,7 +602,8 @@ public class PrintMek extends PrintEntity {
                     element = getElementById(IS_PIPS + mek.getLocationAbbr(loc));
                     if (null != element) {
                         ArmorPipLayout.addPips(this, element, mek.getOInternal(loc),
-                              PipType.forST(mek.getStructureType(), options),
+                            PipType.forST(mek.isFrankenMek() ? mek.getFrankenMekStructureType(loc)
+                                : mek.getStructureType(), options),
                               DEFAULT_PIP_STROKE, FILL_WHITE, getStructureDamage(loc), alternateMethod, "structure",
                               mek.getLocationAbbr(loc), false);
                     }
@@ -579,26 +627,21 @@ public class PrintMek extends PrintEntity {
                           "armor",
                           mek.getLocationAbbr(loc),
                           true
-                          );
+                    );
 
                 }
             }
 
         }
-        if (mek.isSuperHeavy()) {
-            element = getSVGDocument().getElementById(IS_PIPS_HD);
-            if (null != element) {
-                hideElement(element, true);
-            }
-            element = getSVGDocument().getElementById(IS_PIPS_HD_SH);
-            if (null != element) {
-                hideElement(element, false);
-            }
+        if (!structureComplete[Mek.LOC_HEAD]) {
+            hideElement(IS_PIPS_HD, useSuperHeavyHeadPips());
+            hideElement(IS_PIPS_HD_SH, !useSuperHeavyHeadPips());
         }
     }
 
 
     public static final String[] PRESERVED_PIP_ATTRIBUTES = { "id", "loc", "rear", "class" };
+
     private Element makeFancy(SVGPathElement oldPip, boolean structure, int type) {
         var parent = oldPip.getParentNode();
         var bounds = oldPip.getBBox();
@@ -721,6 +764,10 @@ public class PrintMek extends PrintEntity {
             }
             String weight = SVGConstants.SVG_BOLD_VALUE;
             String fill = FILL_BLACK;
+            final boolean extraHit = hasExtraHitPoint(crit);
+            if (extraHit) {
+                g.setAttributeNS(null, "extraHit", "1");
+            }
             if (crit != null && crit.isDamaged()) {
                 addLineThrough(g, viewX - EXTEND_DAMAGE_LINE_THROUGH_LENGTH, currY - (fontSize * 0.3),
                       (critX - viewX) + EXTEND_DAMAGE_LINE_THROUGH_LENGTH);
@@ -736,16 +783,25 @@ public class PrintMek extends PrintEntity {
                       SVGConstants.SVG_START_VALUE, weight, fill);
             } else if (crit.isArmored()) {
                 g.setAttributeNS(null, "armored", "1");
-                Element pip = createPip(critX, currY - fontSize * 0.8, fontSize * 0.4, 0.7, PipType.CIRCLE,
+                Element pip = createPip(critX, (currY - fontSize * 0.8) + 0.2, fontSize * 0.4, 0.7, PipType.CIRCLE,
                       FILL_WHITE, "armoredLocPip", null, false);
                 g.appendChild(pip);
-                addTextElement(g, critX + fontSize, currY, formatCritName(crit), fontSize,
+                final double textX = critX + fontSize;
+                final double textLength = addTextElement(g, textX, currY, formatCritName(crit), fontSize,
                       SVGConstants.SVG_START_VALUE, weight, SVGConstants.SVG_NORMAL_VALUE, fill);
+                if (extraHit) {
+                    addExtraHitPip(g, textX + textLength, currY + 0.2, fontSize);
+                }
             } else if ((crit.getType() == CriticalSlot.TYPE_EQUIPMENT)
                   && (crit.getMount().getType() instanceof MiscType)
                   && (crit.getMount().getType().hasFlag(MiscType.F_MODULAR_ARMOR))) {
                 final String critName = formatCritName(crit);
                 final double textLength = getTextLength(critName, fontSize, weight);
+                // Make pip start position the same for both front and rear facing Modular Armor
+                double pipX = textLength;
+                if (!critName.contains("(R)")) {
+                    pipX = getTextLength(critName + " (R)", fontSize, weight);
+                }
                 if (crit.isDamaged()) {
                     addLineThrough(locGroup,
                           critX,
@@ -755,8 +811,8 @@ public class PrintMek extends PrintEntity {
                 addTextElement(g, critX, currY, critName, fontSize, SVGConstants.SVG_START_VALUE, weight,
                       SVGConstants.SVG_NORMAL_VALUE, fill);
                 g.setAttributeNS(null, "modularArmor", "1");
-                x = critX + textLength;
-                double remainingW = viewX + viewWidth - x;
+                x = critX + pipX;
+                double remainingW = viewX + viewWidth + 5 - x;
                 double spacing = remainingW / 6.0;
                 double radius = spacing * 0.25;
                 double y = currY - lineHeight + spacing;
@@ -789,6 +845,9 @@ public class PrintMek extends PrintEntity {
                 }
                 addTextElement(g, critX, currY, critName, fontSize,
                       SVGConstants.SVG_START_VALUE, weight, SVGConstants.SVG_NORMAL_VALUE, fill);
+                if (extraHit) {
+                    addExtraHitPip(g, critX + getTextLength(critName, fontSize, weight), currY + 0.2, fontSize);
+                }
             }
             Mounted<?> m = null;
             if ((null != crit) && (crit.getType() == CriticalSlot.TYPE_EQUIPMENT)
@@ -812,6 +871,37 @@ public class PrintMek extends PrintEntity {
         if ((null != startingMount) && (mek.getNumberOfCriticalSlots(loc) - startingSlotIndex > 1)) {
             connectSlots(canvas, critX - 1, startingMountY, connWidth, endingMountY - startingMountY);
         }
+    }
+
+    /**
+     * Under Core rules, an autocannon that occupies a single critical slot requires two hits to destroy.
+     *
+     * @param crit The critical slot to check
+     *
+     * @return Whether the slot receives an extra hit point
+     */
+    static boolean hasExtraHitPoint(@Nullable CriticalSlot crit) {
+        return (crit != null)
+              && (crit.getType() == CriticalSlot.TYPE_EQUIPMENT)
+              && (crit.getMount() != null)
+              && !CConfig.usesTotalWarfareRules()
+              && (crit.getMount().getType() instanceof WeaponType weaponType)
+              && weaponType.hasFlag(WeaponType.F_AC)
+              && (crit.getMount().getNumCriticalSlots() == 1);
+    }
+
+    private void addExtraHitPip(Element parent, double textEndX, double currY, float fontSize) {
+        final double pipSize = fontSize * 0.8;
+        Element pip = getSVGDocument().createElementNS(svgNS, SVGConstants.SVG_RECT_TAG);
+        pip.setAttributeNS(null, SVGConstants.SVG_CLASS_ATTRIBUTE, "pip extraHitPip");
+        pip.setAttributeNS(null, SVGConstants.SVG_X_ATTRIBUTE, Double.toString(textEndX + fontSize * 0.2));
+        pip.setAttributeNS(null, SVGConstants.SVG_Y_ATTRIBUTE, Double.toString(currY - pipSize));
+        pip.setAttributeNS(null, SVGConstants.SVG_WIDTH_ATTRIBUTE, Double.toString(pipSize));
+        pip.setAttributeNS(null, SVGConstants.SVG_HEIGHT_ATTRIBUTE, Double.toString(pipSize));
+        pip.setAttributeNS(null, SVGConstants.SVG_FILL_ATTRIBUTE, FILL_WHITE);
+        pip.setAttributeNS(null, SVGConstants.SVG_STROKE_ATTRIBUTE, FILL_BLACK);
+        pip.setAttributeNS(null, SVGConstants.SVG_STROKE_WIDTH_ATTRIBUTE, "0.7");
+        parent.appendChild(pip);
     }
 
     private void connectSlots(Element canvas, double x, double y, double w,
@@ -924,7 +1014,7 @@ public class PrintMek extends PrintEntity {
             baseRun--;
             fullRun--;
         }
-        return formatMovement(baseRun, fullRun);
+        return formatMovement(Math.max(0, baseRun), Math.max(0, fullRun));
     }
 
     private String formatQuadVeeFlank() {
@@ -1176,4 +1266,55 @@ public class PrintMek extends PrintEntity {
         return mek.getGyroHits();
     }
 
+    @Override
+    protected void shiftOptionalDataFields(boolean hidRulesLevel, boolean hidRole) {
+        if (mek instanceof LandAirMek) {
+            if (hidRulesLevel) {
+                if (hidRole) {
+                    shiftElement(LBL_ENGINE, LBL_RULES);
+                    shiftElement(ENGINE_TYPE, RULES_LEVEL);
+                    resizeInventoryForShiftedElement(ENGINE_TYPE);
+                } else {
+                    shiftElement(LBL_ROLE, LBL_RULES);
+                    shiftElement(ROLE, RULES_LEVEL);
+                }
+            }
+            return;
+        }
+
+        if (mek instanceof QuadVee) {
+            if (hidRulesLevel) {
+                if (hidRole) {
+                    shiftElement(LBL_ENGINE, LBL_RULES);
+                    shiftElement(ENGINE_TYPE, RULES_LEVEL);
+                } else {
+                    shiftElement(LBL_ENGINE, LBL_ROLE);
+                    shiftElement(ENGINE_TYPE, ROLE);
+                    shiftElement(LBL_ROLE, LBL_RULES);
+                    shiftElement(ROLE, RULES_LEVEL);
+                }
+            } else if (hidRole) {
+                shiftElement(LBL_ENGINE, LBL_ROLE);
+                shiftElement(ENGINE_TYPE, ROLE);
+            }
+            return;
+        }
+
+        if (hidRulesLevel || hidRole) {
+            if (hidRulesLevel && hidRole) {
+                shiftElement(LBL_ENGINE, LBL_RULES);
+                shiftElement(ENGINE_TYPE, RULES_LEVEL);
+            } else {
+                shiftElement(LBL_ENGINE, LBL_ROLE);
+                shiftElement(ENGINE_TYPE, ROLE);
+            }
+            resizeInventoryForShiftedElement(ENGINE_TYPE);
+
+
+            if (!hidRole) {
+                shiftElement(LBL_ROLE, LBL_RULES);
+                shiftElement(ROLE, RULES_LEVEL);
+            }
+        }
+    }
 }

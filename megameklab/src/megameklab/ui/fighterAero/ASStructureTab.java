@@ -47,7 +47,6 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 
-import megamek.codeUtilities.MathUtility;
 import megamek.common.CriticalSlot;
 import megamek.common.SimpleTechLevel;
 import megamek.common.TechConstants;
@@ -70,6 +69,7 @@ import megamek.common.verifier.BayData;
 import megamek.common.verifier.Ceil;
 import megamek.common.verifier.TestAero;
 import megamek.common.verifier.TestEntity;
+import megamek.logging.MMLogger;
 import megameklab.ui.EntitySource;
 import megameklab.ui.generalUnit.ArmorAllocationView;
 import megameklab.ui.generalUnit.BasicInfoView;
@@ -87,9 +87,12 @@ import megameklab.ui.util.RefreshListener;
 import megameklab.util.UnitUtil;
 
 public class ASStructureTab extends ITab implements AeroBuildListener, ArmorAllocationListener {
+    private static final MMLogger LOGGER = MMLogger.create(ASStructureTab.class);
+
     private JPanel masterPanel;
     private BasicInfoView panInfo;
     private ASChassisView panChassis;
+    private ASChassisModView panChassisMod;
     private MVFArmorView panArmor;
     private MovementView panMovement;
     private FuelView panFuel;
@@ -114,6 +117,7 @@ public class ASStructureTab extends ITab implements AeroBuildListener, ArmorAllo
         masterPanel = new JPanel(new GridBagLayout());
         panInfo = new BasicInfoView(getAero().getConstructionTechAdvancement());
         panChassis = new ASChassisView(panInfo);
+        panChassisMod = new ASChassisModView(panInfo);
         panArmor = new MVFArmorView(panInfo);
         panMovement = new MovementView(panInfo);
         panFuel = new FuelView();
@@ -162,6 +166,7 @@ public class ASStructureTab extends ITab implements AeroBuildListener, ArmorAllo
         midPanel.add(panSummary);
         midPanel.add(Box.createHorizontalStrut(300));
 
+        rightPanel.add(panChassisMod);
         rightPanel.add(panArmor);
         rightPanel.add(panPatchwork);
         rightPanel.add(panArmorAllocation);
@@ -182,6 +187,7 @@ public class ASStructureTab extends ITab implements AeroBuildListener, ArmorAllo
 
         panInfo.setBorder(BorderFactory.createTitledBorder("Basic Information"));
         panChassis.setBorder(BorderFactory.createTitledBorder("Chassis"));
+        panChassisMod.setBorder(BorderFactory.createTitledBorder("Chassis Modifications"));
         panMovement.setBorder(BorderFactory.createTitledBorder("Movement"));
         panFuel.setBorder(BorderFactory.createTitledBorder("Fuel"));
         panHeat.setBorder(BorderFactory.createTitledBorder("Heat Sinks"));
@@ -207,6 +213,7 @@ public class ASStructureTab extends ITab implements AeroBuildListener, ArmorAllo
 
         panInfo.setFromEntity(getAero());
         panChassis.setFromEntity(getAero());
+        panChassisMod.setFromEntity(getAero());
         panHeat.setFromAero(getAero());
         panFuel.setFromEntity(getAero());
         panMovement.setFromEntity(getAero());
@@ -216,6 +223,7 @@ public class ASStructureTab extends ITab implements AeroBuildListener, ArmorAllo
         panTransport.setFromEntity(getAero());
         iconView.setFromEntity(getEntity());
 
+        panChassisMod.setVisible(panChassis.isConventional());
         panHeat.setVisible(!getAero().hasETypeFlag(Entity.ETYPE_CONV_FIGHTER));
 
         setAeroStructuralIntegrity();
@@ -259,6 +267,7 @@ public class ASStructureTab extends ITab implements AeroBuildListener, ArmorAllo
         return true;
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void removeSystemCrits(int systemType) {
         for (int loc = 0; loc < getAero().locations(); loc++) {
             for (int slot = 0; slot < getAero().getNumberOfCriticalSlots(loc); slot++) {
@@ -278,6 +287,7 @@ public class ASStructureTab extends ITab implements AeroBuildListener, ArmorAllo
     public void removeAllListeners() {
         panInfo.removeListener(this);
         panChassis.removeListener(this);
+        panChassisMod.removeListener(this);
         panHeat.removeListener(this);
         panFuel.removeListener(this);
         panMovement.removeListener(this);
@@ -290,6 +300,7 @@ public class ASStructureTab extends ITab implements AeroBuildListener, ArmorAllo
     public void addAllListeners() {
         panInfo.addListener(this);
         panChassis.addListener(this);
+        panChassisMod.addListener(this);
         panHeat.addListener(this);
         panFuel.addListener(this);
         panMovement.addListener(this);
@@ -348,6 +359,13 @@ public class ASStructureTab extends ITab implements AeroBuildListener, ArmorAllo
     @Override
     public void sourceChanged(String source) {
         getAero().setSource(source);
+        refresh.refreshSummary();
+        refresh.refreshPreview();
+    }
+
+    @Override
+    public void publishedChanged(String published) {
+        getAero().setPublished(published);
         refresh.refreshSummary();
         refresh.refreshPreview();
     }
@@ -455,10 +473,15 @@ public class ASStructureTab extends ITab implements AeroBuildListener, ArmorAllo
     @Override
     public void armorTypeChanged(int at, int aTechLevel) {
         if (at != EquipmentType.T_ARMOR_PATCHWORK) {
+            double initialArmorTonnage = getAero().getArmorWeight();
             UnitUtil.removeISorArmorMounts(getAero(), false);
             UnitUtil.compactCriticalSlots(getAero());
             getAero().setArmorTechLevel(aTechLevel);
             getAero().setArmorType(at);
+            double maxArmorTonnage = UnitUtil.getMaximumArmorTonnage(getAero());
+            if (initialArmorTonnage > maxArmorTonnage) {
+                getAero().setArmorTonnage(maxArmorTonnage);
+            }
             panArmorAllocation.showPatchwork(false);
             panPatchwork.setVisible(false);
         } else {
@@ -504,7 +527,7 @@ public class ASStructureTab extends ITab implements AeroBuildListener, ArmorAllo
         double totalTonnage = getAero().getWeight();
         double remainingTonnage = TestEntity.floor(totalTonnage - currentTonnage, Ceil.HALF_TON);
 
-        double maxArmor = MathUtility.clamp(getAero().getArmorWeight() + remainingTonnage, 0,
+        double maxArmor = Math.clamp(getAero().getArmorWeight() + remainingTonnage, 0,
               UnitUtil.getMaximumArmorTonnage(getAero()));
         getAero().setArmorTonnage(maxArmor);
         panArmor.removeListener(this);
@@ -605,6 +628,31 @@ public class ASStructureTab extends ITab implements AeroBuildListener, ArmorAllo
         refreshSummary();
         refresh.refreshPreview();
         refresh.refreshStatus();
+    }
+
+    @Override
+    public void setChassisMod(EquipmentType mod, boolean installed) {
+        final Mounted<?> current = getAero().getMisc().stream().filter(m -> m.getType().equals(mod)).findFirst()
+              .orElse(null);
+        if (installed && (null == current)) {
+            try {
+                getAero().addEquipment(mod, Aero.LOC_FUSELAGE);
+            } catch (LocationFullException e) {
+                // This should not be possible since chassis mods don't occupy slots
+                LOGGER.error("LocationFullException when adding chassis mod {}", mod.getName());
+            }
+        } else if (!installed && (null != current)) {
+            getAero().getMisc().remove(current);
+            getAero().getEquipment().remove(current);
+            UnitUtil.removeCriticalSlots(getAero(), current);
+            UnitUtil.changeMountStatus(getAero(), current, Entity.LOC_NONE, Entity.LOC_NONE, false);
+        }
+        panSummary.refresh();
+        refresh.refreshEquipment();
+        refresh.refreshTransport();
+        refresh.refreshStatus();
+        refresh.refreshPreview();
+        refresh.refreshBuild();
     }
 
     @Override
@@ -809,7 +857,7 @@ public class ASStructureTab extends ITab implements AeroBuildListener, ArmorAllo
         } else if (!hasMod && getAero().hasDNICockpitMod()) {
             for (MiscMounted mounted : getAero().getMisc()) {
                 if (mounted.getType().hasFlag(MiscType.F_DNI_COCKPIT_MOD)) {
-                    getAero().removeMisc(mounted.getType().getInternalName());
+                    getAero().removeMisc(mounted.getName());
                     break;
                 }
             }

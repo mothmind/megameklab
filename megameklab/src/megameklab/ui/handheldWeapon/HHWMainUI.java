@@ -45,6 +45,7 @@ import megamek.common.interfaces.ITechManager;
 import megamek.common.units.Entity;
 import megameklab.ui.MegaMekLabMainUI;
 import megameklab.ui.generalUnit.FluffTab;
+import megameklab.ui.generalUnit.AnalysisTab;
 import megameklab.ui.generalUnit.PreviewTab;
 import megameklab.ui.util.TabScrollPane;
 
@@ -53,6 +54,7 @@ public class HHWMainUI extends MegaMekLabMainUI {
     private HHWEquipmentTab equipmentTab;
     private FluffTab fluffTab;
     private PreviewTab previewTab;
+    private AnalysisTab analysisTab;
 
     @Override
     protected FluffTab getFluffTab() {
@@ -82,12 +84,14 @@ public class HHWMainUI extends MegaMekLabMainUI {
         fluffTab = new FluffTab(this);
         fluffTab.setRefreshedListener(this);
         previewTab = new PreviewTab(this);
+        analysisTab = new AnalysisTab(this);
         structureTab.addRefreshedListener(this);
 
         configPane.addTab("Structure", new TabScrollPane(structureTab));
         configPane.addTab("Equipment", new TabScrollPane(equipmentTab));
         configPane.addTab("Fluff", new TabScrollPane(fluffTab));
         configPane.addTab("Preview", previewTab);
+        configPane.addTab("Analysis", analysisTab);
 
         statusbar = new HHWStatusBar(this);
         statusbar.addRefreshedListener(this);
@@ -105,6 +109,7 @@ public class HHWMainUI extends MegaMekLabMainUI {
         structureTab.refresh();
         fluffTab.refresh();
         previewTab.refresh();
+        analysisTab.refresh();
         statusbar.refresh();
         equipmentTab.refresh();
         refreshHeader();
@@ -156,6 +161,7 @@ public class HHWMainUI extends MegaMekLabMainUI {
     public void refreshPreview() {
         super.refreshPreview();
         previewTab.refresh();
+        analysisTab.refresh();
     }
 
     @Override
@@ -194,14 +200,7 @@ public class HHWMainUI extends MegaMekLabMainUI {
             newUnit.setModel("Handheld Weapon");
             newUnit.setYear(3145);
         } else {
-            newUnit.setChassis(oldUnit.getChassis());
-            newUnit.setModel(oldUnit.getModel());
-            newUnit.setYear(Math.max(oldUnit.getYear(),
-                  newUnit.getConstructionTechAdvancement().getIntroductionDate()));
-            newUnit.setSource(oldUnit.getSource());
-            newUnit.setManualBV(oldUnit.getManualBV());
-            newUnit.setTechLevel(oldUnit.getTechLevel());
-            newUnit.setMixedTech(oldUnit.isMixedTech());
+            copyUnitBasics(newUnit, oldUnit);
         }
         setEntity(newUnit, "");
         forceDirtyUntilNextSave();

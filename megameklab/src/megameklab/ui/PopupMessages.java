@@ -33,7 +33,6 @@
 package megameklab.ui;
 
 import java.awt.Component;
-import java.awt.Dimension;
 import java.io.File;
 import java.util.ResourceBundle;
 import javax.swing.JOptionPane;
@@ -45,9 +44,9 @@ import megamek.common.units.Entity;
 
 /**
  * This class contains static methods that each show a commonly used popup message, such as the "unit is invalid"
- * warning or common errors. The parent frame should ideally be not null. When in doubt, use Swing's utility method,
- * see below, where any component can be supplied to find a suitable frame for a popup message, and pass the result
- * to the methods herein.
+ * warning or common errors. The parent frame should ideally be not null. When in doubt, use Swing's utility method, see
+ * below, where any component can be supplied to find a suitable frame for a popup message, and pass the result to the
+ * methods herein.
  *
  * @see javax.swing.SwingUtilities#getWindowAncestor(Component)
  */
@@ -55,6 +54,12 @@ import megamek.common.units.Entity;
 public final class PopupMessages {
 
     private static final ResourceBundle resources = ResourceBundle.getBundle("megameklab.resources.PopupMessages");
+
+    public enum UnitFileUUIDChoice {
+        TARGET,
+        CURRENT,
+        CANCEL
+    }
 
     public static void showMostRecentUnitMissingError(Component parent) {
         showInfoMessage(parent, resources.getString("mostRecentNotFound"));
@@ -115,6 +120,26 @@ public final class PopupMessages {
     public static void showUnitSavedMessage(Component parent, Entity entity, File file) {
         showInfoMessage(parent, String.format(resources.getString("unitSaved"),
               entity.getChassis(), entity.getModel(), file));
+    }
+
+    public static UnitFileUUIDChoice showUnitFileUUIDConflict(Component parent, Entity currentEntity,
+        Entity targetEntity) {
+        String message = String.format(resources.getString("unitFileUUIDConflict"),
+            targetEntity.getOriginalChassis(), targetEntity.getOriginalModel(), targetEntity.getOriginalUnitFileUUID(),
+            currentEntity.getChassis(), currentEntity.getModel(), currentEntity.getUnitFileUUID());
+        Object[] options = {
+            resources.getString("keepTargetUnitUUID"),
+            resources.getString("keepCurrentUnitUUID"),
+            resources.getString("cancel")
+        };
+        int choice = JOptionPane.showOptionDialog(parent, possiblyWrapInScrollBar(message),
+            resources.getString("unitFileUUIDConflictTitle"), JOptionPane.DEFAULT_OPTION,
+            JOptionPane.WARNING_MESSAGE, null, options, options[1]);
+        return switch (choice) {
+        case 0 -> UnitFileUUIDChoice.TARGET;
+        case 1 -> UnitFileUUIDChoice.CURRENT;
+        default -> UnitFileUUIDChoice.CANCEL;
+        };
     }
 
     public static void showLookAndFeelError(Component parent, String errorMessage) {

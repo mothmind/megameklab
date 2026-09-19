@@ -36,7 +36,6 @@ import java.awt.BorderLayout;
 import java.util.List;
 import javax.swing.JDialog;
 
-import megamek.common.SimpleTechLevel;
 import megamek.common.TechConstants;
 import megamek.common.equipment.Engine;
 import megamek.common.equipment.EquipmentType;
@@ -54,16 +53,22 @@ import megameklab.ui.MegaMekLabMainUI;
 import megameklab.ui.dialog.FloatingEquipmentDatabaseDialog;
 import megameklab.ui.generalUnit.AbstractEquipmentTab;
 import megameklab.ui.generalUnit.FluffTab;
+import megameklab.ui.generalUnit.AnalysisTab;
 import megameklab.ui.generalUnit.PreviewTab;
+import megameklab.ui.generalUnit.AvailabilityTab;
+import megameklab.util.CConfig;
 import megameklab.ui.generalUnit.QuirksTab;
 import megameklab.ui.util.TabScrollPane;
 import megameklab.util.MekUtil;
 
 public class BMMainUI extends MegaMekLabMainUI {
+    private static final String FRANKEN_MEK_STRUCTURE_TAB_TITLE = "FrankenMek Structure";
 
     private BMStructureTab structureTab;
+    private TabScrollPane frankenMekStructureTab;
     private AbstractEquipmentTab equipmentTab;
     private PreviewTab previewTab;
+    private AnalysisTab analysisTab;
     private BMBuildTab buildTab;
     private FluffTab fluffTab;
     private BMStatusBar statusbar;
@@ -73,6 +78,7 @@ public class BMMainUI extends MegaMekLabMainUI {
         return fluffTab;
     }
     private QuirksTab quirksTab;
+    private AvailabilityTab availabilityTab;
     private FloatingEquipmentDatabaseDialog floatingEquipmentDatabase;
 
     public BMMainUI(Entity entity, String filename) {
@@ -92,17 +98,21 @@ public class BMMainUI extends MegaMekLabMainUI {
         removeAll();
 
         structureTab = new BMStructureTab(this);
+        frankenMekStructureTab = new TabScrollPane(structureTab.getFrankenMekStructureView());
         previewTab = new PreviewTab(this);
+        analysisTab = new AnalysisTab(this);
         statusbar = new BMStatusBar(this);
         equipmentTab = new BMEquipmentTab(this);
         buildTab = new BMBuildTab(this);
         fluffTab = new FluffTab(this);
         quirksTab = new QuirksTab(this);
+        availabilityTab = new AvailabilityTab(this);
         structureTab.addRefreshedListener(this);
         equipmentTab.addRefreshedListener(this);
         buildTab.addRefreshedListener(this);
         fluffTab.setRefreshedListener(this);
         quirksTab.addRefreshedListener(this);
+        availabilityTab.addRefreshedListener(this);
         statusbar.addRefreshedListener(this);
 
         configPane.addTab("Structure/Armor", new TabScrollPane(structureTab));
@@ -110,7 +120,11 @@ public class BMMainUI extends MegaMekLabMainUI {
         configPane.addTab("Assign Criticals", new TabScrollPane(buildTab));
         configPane.addTab("Fluff", new TabScrollPane(fluffTab));
         configPane.addTab("Quirks", new TabScrollPane(quirksTab, quirksTab.refreshOnShow));
+        if (CConfig.showAvailabilityTab()) {
+            configPane.addTab("Availability", new TabScrollPane(availabilityTab, availabilityTab.refreshOnShow));
+        }
         configPane.addTab("Preview", previewTab);
+        configPane.addTab("Analysis", analysisTab);
 
         add(configPane, BorderLayout.CENTER);
         add(statusbar, BorderLayout.SOUTH);
@@ -124,6 +138,23 @@ public class BMMainUI extends MegaMekLabMainUI {
 
         refreshAll();
         validate();
+    }
+
+    private void syncFrankenMekStructureTab() {
+        if (frankenMekStructureTab == null) {
+            return;
+        }
+        boolean showTab = ((Mek) getEntity()).isFrankenMek();
+        boolean tabShown = configPane.containsTab(frankenMekStructureTab);
+        if (showTab == tabShown) {
+            return;
+        }
+        if (showTab) {
+            configPane.insertTab(FRANKEN_MEK_STRUCTURE_TAB_TITLE, null, frankenMekStructureTab, null,
+                  Math.min(1, configPane.getTabCount()));
+        } else {
+            configPane.removeTab(frankenMekStructureTab);
+        }
     }
 
     @Override
@@ -196,16 +227,7 @@ public class BMMainUI extends MegaMekLabMainUI {
             newUnit.setModel("Mek");
             newUnit.setYear(3145);
         } else {
-            newUnit.setChassis(oldEntity.getChassis());
-            newUnit.setModel(oldEntity.getModel());
-            newUnit.setYear(Math.max(oldEntity.getYear(),
-                  newUnit.getConstructionTechAdvancement().getIntroductionDate()));
-            newUnit.setSource(oldEntity.getSource());
-            newUnit.setManualBV(oldEntity.getManualBV());
-            SimpleTechLevel lvl = SimpleTechLevel.max(newUnit.getStaticTechLevel(),
-                  SimpleTechLevel.convertCompoundToSimple(oldEntity.getTechLevel()));
-            newUnit.setTechLevel(lvl.getCompoundTechLevel(oldEntity.isClan()));
-            newUnit.setMixedTech(oldEntity.isMixedTech());
+            copyUnitBasics(newUnit, oldEntity);
         }
         setEntity(newUnit, "");
         forceDirtyUntilNextSave();
@@ -216,10 +238,13 @@ public class BMMainUI extends MegaMekLabMainUI {
         super.refreshAll();
         statusbar.refresh();
         structureTab.refresh();
+        syncFrankenMekStructureTab();
         equipmentTab.refresh();
         buildTab.refresh();
         quirksTab.refresh();
+        availabilityTab.refresh();
         previewTab.refresh();
+        analysisTab.refresh();
         floatingEquipmentDatabase.refresh();
         fluffTab.refresh();
         refreshHeader();
@@ -234,6 +259,7 @@ public class BMMainUI extends MegaMekLabMainUI {
     public void refreshBuild() {
         super.refreshBuild();
         buildTab.refresh();
+        syncFrankenMekStructureTab();
     }
 
     @Override
@@ -251,6 +277,7 @@ public class BMMainUI extends MegaMekLabMainUI {
     public void refreshPreview() {
         super.refreshPreview();
         previewTab.refresh();
+        analysisTab.refresh();
     }
 
     @Override
@@ -263,6 +290,7 @@ public class BMMainUI extends MegaMekLabMainUI {
     public void refreshStructure() {
         super.refreshStructure();
         structureTab.refresh();
+        syncFrankenMekStructureTab();
     }
 
     @Override

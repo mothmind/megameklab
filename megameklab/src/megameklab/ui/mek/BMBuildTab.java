@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2008-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMekLab.
  *
@@ -32,6 +32,7 @@
  */
 package megameklab.ui.mek;
 
+import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.event.KeyEvent;
 import java.util.ResourceBundle;
@@ -42,6 +43,7 @@ import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JToggleButton;
+import javax.swing.UIManager;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
@@ -72,19 +74,27 @@ public class BMBuildTab extends ITab {
 
     public BMBuildTab(EntitySource eSource) {
         super(eSource);
+        setLayout(new BorderLayout());
+        JPanel critPanel = new JPanel();
+        critPanel.setLayout(new BoxLayout(critPanel, BoxLayout.Y_AXIS));
+        JPanel buildPanel = new JPanel();
+        buildPanel.setLayout(new BoxLayout(buildPanel, BoxLayout.Y_AXIS));
+
         autoFillUnHitTables.setSelected(CConfig.getBooleanParam(CConfig.MEK_AUTOFILL));
         autoSort.setSelected(CConfig.getBooleanParam(CConfig.MEK_AUTO_SORT));
         autoCompact.setSelected(CConfig.getBooleanParam(CConfig.MEK_AUTO_COMPACT));
         critView = new BMCriticalView(eSource, refresh);
         buildView = new BMBuildView(eSource, refresh, critView);
 
-        Box leftSide = Box.createVerticalBox();
-        leftSide.add(createButtonPanel());
-        leftSide.add(critView);
+        critPanel.add(createButtonPanel());
+        critPanel.add(Box.createVerticalGlue());
+        critPanel.add(critView);
+        critPanel.add(Box.createVerticalGlue());
 
-        setLayout(new BoxLayout(this, BoxLayout.LINE_AXIS));
-        add(leftSide);
-        add(buildView);
+        buildPanel.add(buildView);
+
+        this.add(critPanel, BorderLayout.CENTER);
+        this.add(buildPanel, BorderLayout.EAST);
         refresh();
     }
 
@@ -131,7 +141,7 @@ public class BMBuildTab extends ITab {
         unallocatedList.add(resetButton);
 
         Box buttonPanel = Box.createHorizontalBox();
-        buttonPanel.setBackground(UIUtil.alternateTableBGColor());
+        buttonPanel.setBackground(UIManager.getColor("Table.background"));
         buttonPanel.setOpaque(true);
         buttonPanel.setBorder(BorderFactory.createCompoundBorder(
               new LineBorder(getBackground(), 10),

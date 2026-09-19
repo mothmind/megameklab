@@ -50,7 +50,6 @@ import java.util.function.Function;
 import megamek.common.battleArmor.BattleArmor;
 import megamek.common.equipment.AmmoType;
 import megamek.common.equipment.EquipmentType;
-import megamek.common.equipment.EquipmentTypeLookup;
 import megamek.common.equipment.GunEmplacement;
 import megamek.common.equipment.MiscType;
 import megamek.common.equipment.WeaponType;
@@ -92,7 +91,7 @@ public enum EquipmentDatabaseCategory {
                 && (!(e instanceof Infantry) || (e instanceof BattleArmor))),
 
     CAPITAL("Capital",
-          (eq, en) -> (eq instanceof WeaponType) && ((WeaponType) eq).isCapital(),
+          (eq, en) -> (eq instanceof WeaponType) && ((WeaponType) eq).isCapital() || eq.is("Screen Launcher"),
           Entity::isLargeCraft),
 
     PHYSICAL("Physical",
@@ -113,7 +112,8 @@ public enum EquipmentDatabaseCategory {
                 && !UnitUtil.isJumpJet(eq)
                 && !UnitUtil.isHeatSink(eq)
                 && !(isIndustrialEquipment(eq) && ((en instanceof Tank) || en.isSupportVehicle() || en instanceof Mek))
-                && !eq.isAnyOf(LAM_FUEL_TANK, MECHANICAL_JUMP_BOOSTER)
+                && !eq.is(MECHANICAL_JUMP_BOOSTER)
+                && !eq.hasFlag(F_LAM_FUEL_TANK)
                 && !eq.hasFlag(F_TSM)
                 && !eq.hasFlag(F_INDUSTRIAL_TSM)
                 && !(eq.hasFlag(F_MASC)
@@ -147,9 +147,8 @@ public enum EquipmentDatabaseCategory {
           (eq, en) -> (eq instanceof WeaponType) && eq.hasFlag(WeaponType.F_ONE_SHOT)),
 
     TORPEDO("Torpedoes",
-          (eq, en) -> (eq instanceof WeaponType)
-                && (((WeaponType) eq).getAmmoType() == AmmoType.AmmoTypeEnum.LRM_TORPEDO
-                || ((WeaponType) eq).getAmmoType() == AmmoType.AmmoTypeEnum.SRM_TORPEDO),
+          (eq, en) -> (eq instanceof WeaponType weaponType)
+                && weaponType.getAmmoType() != null && weaponType.getAmmoType().isTorpedo(),
           e -> !(e instanceof BattleArmor) && !(e instanceof Aero)),
 
     UNAVAILABLE("Unavailable"),

@@ -197,17 +197,17 @@ public class PrintAero extends PrintEntity {
               && (aero.getCockpitType() != Aero.COCKPIT_PRIMITIVE)) {
             sj.add(aero.getCockpitTypeString());
         }
-        if (aero.isSupportVehicle()) {
-            List<String> chassisMods = aero.getMisc()
-                  .stream()
-                  .filter(m -> m.getType().hasFlag(MiscType.F_CHASSIS_MODIFICATION))
-                  .map(m -> m.getType().getShortName())
-                  .collect(Collectors.toList());
-            if (!chassisMods.isEmpty()) {
-                sj.add(String.join(", ", chassisMods)
-                      + (chassisMods.size() == 1 ? " Chassis Mod" : " Chassis Mods"));
-            }
-        } else if ((aero instanceof ConvFighter) && aero.isVSTOL()) {
+        List<String> chassisMods = aero.getMisc()
+                .stream()
+                .filter(m -> m.getType().hasFlag(MiscType.F_CHASSIS_MODIFICATION) 
+                         && !m.getType().hasFlag(MiscType.F_VSTOL_CHASSIS)) // We print it separately
+                .map(m -> m.getType().getShortName())
+                .collect(Collectors.toList());
+        if (!chassisMods.isEmpty()) {
+            sj.add(String.join(", ", chassisMods)
+                    + (chassisMods.size() == 1 ? " Chassis Mod" : " Chassis Mods"));
+        }
+        if ((aero instanceof ConvFighter) && aero.isVSTOL()) {
             sj.add("VSTOL Equipment");
         }
         if (aero.hasWorkingMisc(MiscType.F_ADVANCED_FIRE_CONTROL)) {
@@ -403,5 +403,28 @@ public class PrintAero extends PrintEntity {
             }
         }
         return collarDamage;
+    }
+
+    @Override
+    protected void shiftOptionalDataFields(boolean hidRulesLevel, boolean hidRole) {
+        if (aero instanceof SmallCraft) {
+            if (hidRulesLevel && !hidRole) {
+                shiftElement(LBL_ROLE, LBL_RULES);
+                shiftElement(ROLE, RULES_LEVEL);
+            }
+
+            if (hidRulesLevel || hidRole) {
+                resizeInventoryForShiftedElement(TECH_BASE);
+            }
+        } else {
+            if (hidRulesLevel && !hidRole) {
+                shiftElement(LBL_ROLE, LBL_RULES);
+                shiftElement(ROLE, RULES_LEVEL);
+            } else if (hidRole && hidRulesLevel) {
+                shiftElement(LBL_ENGINE, LBL_RULES);
+                shiftElement(ENGINE_TYPE, RULES_LEVEL);
+                resizeInventoryForShiftedElement(ENGINE_TYPE);
+            }
+        }
     }
 }

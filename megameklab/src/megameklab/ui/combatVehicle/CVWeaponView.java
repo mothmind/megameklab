@@ -67,6 +67,7 @@ import megameklab.ui.util.WeaponListCellRenderer;
 import megameklab.util.StringUtils;
 import megameklab.util.UnitUtil;
 
+@Deprecated(since = "0.51.0", forRemoval = true)
 public class CVWeaponView extends IView implements ActionListener, MouseListener, KeyListener {
     private static final MMLogger logger = MMLogger.create(CVWeaponView.class);
 
@@ -305,7 +306,7 @@ public class CVWeaponView extends IView implements ActionListener, MouseListener
                 } else if (weapon instanceof ArtilleryWeapon) {
                     masterArtilleryWeaponList.add(eq);
                 }
-            } else if ((eq instanceof MiscType) && (eq.hasFlag(MiscType.F_CLUB) || eq.hasFlag(MiscType.F_HAND_WEAPON))
+            } else if ((eq instanceof MiscType) && (eq.hasFlag(MiscType.F_CLUB) || eq.hasFlag(MiscType.F_HAND_WEAPON) || eq.hasFlag(MiscType.F_SHIELD))
                   && eq.hasFlag(MiscType.F_TALON)) {
                 if (eq.hasFlag(MiscType.F_CLUB)
                       && (eq.hasAnyFlag(MiscTypeFlag.S_CLUB, MiscTypeFlag.S_TREE_CLUB))) {
@@ -508,8 +509,8 @@ public class CVWeaponView extends IView implements ActionListener, MouseListener
                         // MegaMek automatically adds a ton of ammo for one-shots
                         // for tracking. We do not need this in MLab
                         if (mount.getType().hasFlag(WeaponType.F_ONE_SHOT)) {
-                            getTank().getEquipment().remove(getTank().getEquipment().size() - 1);
-                            getTank().getAmmo().remove(getTank().getAmmo().size() - 1);
+                            getTank().getEquipment().removeLast();
+                            getTank().getAmmo().removeLast();
                         }
                     }
                 }
@@ -538,8 +539,8 @@ public class CVWeaponView extends IView implements ActionListener, MouseListener
                         // MegaMek automatically adds a ton of ammo for one-shots
                         // for tracking. We do not need this in MLab
                         if (mount.getType().hasFlag(WeaponType.F_ONE_SHOT)) {
-                            getTank().getEquipment().remove(getTank().getEquipment().size() - 1);
-                            getTank().getAmmo().remove(getTank().getAmmo().size() - 1);
+                            getTank().getEquipment().removeLast();
+                            getTank().getAmmo().removeLast();
                         }
                     }
                 }

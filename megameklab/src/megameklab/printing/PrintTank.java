@@ -133,7 +133,7 @@ public class PrintTank extends PrintEntity {
             // Only take the first word; strip "Support Vehicles"
             sb.append(tank.getWeightClassName().replaceAll(" .*", " "));
         } else if (tank.isSuperHeavy()) {
-            sb.append("SuperHeavy ");
+            sb.append("Super-Heavy ");
         }
         switch (tank.getMovementMode()) {
             case NAVAL:
@@ -151,11 +151,14 @@ public class PrintTank extends PrintEntity {
         if (tank.isSupportVehicle()) {
             sb.append("Support ");
         }
+        if (tank instanceof VTOL) {
+            sb.append("V.T.O.L. ");
+        }
         if (tank.isOmni()) {
             sb.append("Omni");
         }
-        if (tank instanceof VTOL) {
-            sb.append("VTOL");
+        if (tank.isNaval()) {
+            sb.append("Vessel");
         } else {
             sb.append("Vehicle");
         }
@@ -319,4 +322,24 @@ public class PrintTank extends PrintEntity {
         }
     }
 
+
+    @Override
+    protected void shiftOptionalDataFields(boolean hidRulesLevel, boolean hidRole) {
+        if (hidRulesLevel || hidRole) {
+            if (hidRulesLevel && hidRole) {
+                shiftElement(LBL_ENGINE, LBL_RULES);
+                shiftElement(ENGINE_TYPE, RULES_LEVEL);
+            } else {
+                shiftElement(LBL_ENGINE, LBL_ROLE);
+                shiftElement(ENGINE_TYPE, ROLE);
+            }
+            resizeInventoryForShiftedElement(ENGINE_TYPE);
+
+
+            if (!hidRole) {
+                shiftElement(LBL_ROLE, LBL_RULES);
+                shiftElement(ROLE, RULES_LEVEL);
+            }
+        }
+    }
 }

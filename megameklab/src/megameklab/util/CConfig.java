@@ -54,6 +54,10 @@ import javax.swing.JFrame;
 
 import megamek.common.Configuration;
 import megamek.common.enums.WeaponSortOrder;
+import megamek.common.game.Game;
+import megamek.common.options.OptionsConstants;
+import megamek.common.rules.core.CoreRulesManager;
+import megamek.common.rules.totalwarfare.TWRulesManager;
 import megamek.logging.MMLogger;
 import megameklab.printing.MekChassisArrangement;
 import megameklab.printing.PrintRecordSheet;
@@ -89,6 +93,8 @@ public final class CConfig {
     public static final String MISC_APPLICATION_EXIT_PROMPT = "applicationExitPrompt";
     public static final String MISC_MUL_OPEN_BEHAVIOUR = "mulDndBehaviour";
     public static final String MISC_INCLUDE_LICENSE = "includeLicense";
+    public static final String MISC_SHOW_AVAILABILITY_TAB = "showAvailabilityTab";
+    public static final String MISC_RULES_SYSTEM = OptionsConstants.RULES_SYSTEM;
 
     public static final String GUI_PLAF = "lookAndFeel";
     public static final String GUI_COLOR_WEAPONS = "Weapons";
@@ -115,6 +121,7 @@ public final class CConfig {
 
     public static final int RECENT_FILE_COUNT = 10;
     public static final String FILE_RECENT_PREFIX = "Save_File_";
+    public static final String RECENT_ENTRY_DELIMITER = "|";
     public static final String FILE_LAST_DIRECTORY = "Last_directory";
     public static final String FILE_CHOOSER_WINDOW = "File_Chooser_Window";
     public static final String FORCE_BUILD_WINDOW = "Force_Build_Window";
@@ -137,6 +144,7 @@ public final class CConfig {
     public static final String RS_SHOW_PILOT_DATA = "rs_show_pilot_data";
     public static final String RS_SHOW_ERA = "rs_show_era";
     public static final String RS_SHOW_ROLE = "rs_show_role";
+    public static final String RS_SHOW_TECH_LEVEL = "rs_show_tech_level";
     public static final String RS_HEAT_PROFILE = "rs_heat_profile";
     public static final String RS_TAC_OPS_HEAT = "rs_tac_ops_heat";
     public static final String RS_REFERENCE = "rs_reference";
@@ -184,12 +192,17 @@ public final class CConfig {
         defaults.setProperty(MISC_SKIP_SAFETY_PROMPTS, Boolean.toString(false));
         defaults.setProperty(MISC_APPLICATION_EXIT_PROMPT, Boolean.toString(true));
         defaults.setProperty(MISC_INCLUDE_LICENSE, Boolean.toString(false));
+        defaults.setProperty(MISC_RULES_SYSTEM, OptionsConstants.RULES_CORE);
+        // On by default so the Force Generator Availability tab is visible; it can be hidden from Options - General.
+        // The toggle is read when an editor is built, so a change takes effect on the next unit opened, not live.
+        defaults.setProperty(MISC_SHOW_AVAILABILITY_TAB, Boolean.toString(true));
         defaults.setProperty(RS_PROGRESS_BAR, Boolean.toString(true));
         defaults.setProperty(RS_COLOR, RecordSheetOptions.ColorMode.LOGO_ONLY.name());
         defaults.setProperty(RS_HEAT_SCALE_MARKER, RecordSheetOptions.HeatScaleMarker.ASTERISK.name());
         defaults.setProperty(RS_SHOW_QUIRKS, Boolean.toString(true));
         defaults.setProperty(RS_SHOW_ERA, Boolean.toString(true));
         defaults.setProperty(RS_SHOW_ROLE, Boolean.toString(true));
+        defaults.setProperty(RS_SHOW_TECH_LEVEL, Boolean.toString(false));
         defaults.setProperty(RS_SHOW_PILOT_DATA, Boolean.toString(true));
         defaults.setProperty(RS_SHOW_C3BV, Boolean.toString(false));
         defaults.setProperty(RS_SCALE_FACTOR, "1");
@@ -266,6 +279,7 @@ public final class CConfig {
         } catch (Exception ex) {
             logger.error("", ex);
         }
+        applyRulesSystem();
     }
 
     /**
@@ -385,6 +399,7 @@ public final class CConfig {
      * @param key   the name of the parameter
      * @param value the value to set the parameter to
      */
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public static <E extends Enum<E>> void setEnumParam(String key, E value) {
         setParam(key, value.name());
     }
@@ -443,19 +458,43 @@ public final class CConfig {
         }
     }
 
+    /**
+     * Adds a file to the most recent files list.
+     *
+     * @param newFile The path to the file to add.
+     */
     public static void setMostRecentFile(final String newFile) {
+        setMostRecentFile(newFile, null);
+    }
+
+    /**
+     * Adds a file (and optionally an entry name if it's a ZIP) to the most recent files list.
+     *
+     * @param newFile   The path to the file.
+     * @param entryName The name of the entry within the file (e.g., for ZIP files). Can be null.
+     */
+    public static void setMostRecentFile(final String newFile, final String entryName) {
         if ((newFile == null) || newFile.isBlank()) {
             return;
         }
 
+        String recentString = newFile;
+        if ((entryName != null) && !entryName.isBlank()) {
+            recentString += RECENT_ENTRY_DELIMITER + entryName;
+        }
+
         List<String> recentFiles = getRecentFiles();
         List<String> recentFilesWithoutDuplicates = recentFiles.stream().distinct().collect(Collectors.toList());
-        recentFilesWithoutDuplicates.removeIf(f -> f.equalsIgnoreCase(newFile));
-        recentFilesWithoutDuplicates.add(0, newFile);
+        final String finalRecentString = recentString;
+        recentFilesWithoutDuplicates.removeIf(f -> f.equalsIgnoreCase(finalRecentString));
+        recentFilesWithoutDuplicates.addFirst(recentString);
         setRecentFiles(recentFilesWithoutDuplicates);
         CConfig.saveConfig();
     }
 
+    /**
+     * @return A list of the most recently loaded unit files.
+     */
     public static List<String> getRecentFiles() {
         List<String> result = new ArrayList<>();
         for (int i = 1; i <= RECENT_FILE_COUNT; i++) {
@@ -466,6 +505,11 @@ public final class CConfig {
         return result;
     }
 
+    /**
+     * Updates the stored recent files parameters.
+     *
+     * @param files The list of files to store.
+     */
     private static void setRecentFiles(List<String> files) {
         for (int i = 0; i < RECENT_FILE_COUNT; i++) {
             if (i < files.size()) {
@@ -528,6 +572,7 @@ public final class CConfig {
         return getWindowPosition(settingForMainUi(mainUi));
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public static Optional<Dimension> getNamedWindowSize(String name) {
         return getWindowSize(name);
     }
@@ -536,6 +581,7 @@ public final class CConfig {
         writeWindowSettings(settingForMainUi(mainUi), (Component) mainUi);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public static void writeNamedWindowSize(String name, Window component) {
         writeWindowSettings(name, component);
     }
@@ -548,12 +594,37 @@ public final class CConfig {
         return MMLStartUp.parse(CConfig.getParam(CConfig.MISC_STARTUP));
     }
 
+    /**
+     * Returns the selected game rules system. Unknown or missing values use MegaMek's default Core rules.
+     */
+    public static String getRulesSystem() {
+        return OptionsConstants.RULES_TW.equals(getParam(MISC_RULES_SYSTEM))
+              ? OptionsConstants.RULES_TW
+              : OptionsConstants.RULES_CORE;
+    }
+
+    /** Applies MML's selected game rules to MegaMek's global rules manager. */
+    public static void applyRulesSystem() {
+        Game.rulesManager = OptionsConstants.RULES_TW.equals(getRulesSystem())
+              ? new TWRulesManager()
+              : new CoreRulesManager();
+    }
+
+    /** @return whether MML is currently calculating with Total Warfare rules. */
+    public static boolean usesTotalWarfareRules() {
+        return Game.rulesManager instanceof TWRulesManager;
+    }
+
     public static MekChassisArrangement getMekNameArrangement() {
         return MekChassisArrangement.parse(CConfig.getParam(CConfig.RS_MEK_NAMES));
     }
 
     public static boolean includeLicense() {
         return CConfig.getBooleanParam(CConfig.MISC_INCLUDE_LICENSE);
+    }
+
+    public static boolean showAvailabilityTab() {
+        return CConfig.getBooleanParam(CConfig.MISC_SHOW_AVAILABILITY_TAB);
     }
 
     public static void resetWindowPositions() {
@@ -585,8 +656,8 @@ public final class CConfig {
             int sizeX = Integer.parseInt(values[2]);
             int sizeY = Integer.parseInt(values[3]);
             Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
-            int clampedWidth = Math.max(50, Math.min(sizeX, screen.width)); // 50 minimum width
-            int clampedHeight = Math.max(50, Math.min(sizeY, screen.height)); // 50 minimum height
+            int clampedWidth = Math.clamp(sizeX, 50, screen.width); // 50 minimum width
+            int clampedHeight = Math.clamp(sizeY, 50, screen.height); // 50 minimum height
             return Optional.of(new Dimension(clampedWidth, clampedHeight));
         } catch (Exception e) {
             return Optional.empty();
@@ -603,8 +674,8 @@ public final class CConfig {
             int posX = Integer.parseInt(values[0]);
             int posY = Integer.parseInt(values[1]);
             Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
-            int clampedX = Math.max(0, Math.min(posX, screen.width - 100)); // -100 to avoid the right edge
-            int clampedY = Math.max(0, Math.min(posY, screen.height - 100)); // -100 to avoid the taskbar
+            int clampedX = Math.clamp(posX, 0, screen.width - 100); // -100 to avoid the right edge
+            int clampedY = Math.clamp(posY, 0, screen.height - 100); // -100 to avoid the taskbar
             return Optional.of(new Point(clampedX, clampedY));
         } catch (Exception e) {
             return Optional.empty();
@@ -646,6 +717,7 @@ public final class CConfig {
     }
 
     private static void applyImportedSettings(MenuBarOwner menuBarOwner) {
+        applyRulesSystem();
         menuBarOwner.changeTheme(getParam(GUI_PLAF));
         menuBarOwner.refreshAll();
     }

@@ -78,6 +78,7 @@ class ExportSettingsPanel extends JPanel {
     private final JButton btnDamageColor = new JButton();
     private final JCheckBox chkShowEraIcon = new JCheckBox();
     private final JCheckBox chkShowRole = new JCheckBox();
+    private final JCheckBox chkShowTechLevel = new JCheckBox();
     private final JCheckBox chkHeatProfile = new JCheckBox();
     private final JCheckBox chkTacOpsHeat = new JCheckBox();
     private final JComboBox<String> cbRSScale = new JComboBox<>();
@@ -299,6 +300,10 @@ class ExportSettingsPanel extends JPanel {
         chkShowRole.setToolTipText(resourceMap.getString("ConfigurationDialog.chkShowRole.tooltip"));
         chkShowRole.setSelected(CConfig.getBooleanParam(CConfig.RS_SHOW_ROLE));
 
+        chkShowTechLevel.setText(resourceMap.getString("ConfigurationDialog.chkShowTechLevel.text"));
+        chkShowTechLevel.setToolTipText(resourceMap.getString("ConfigurationDialog.chkShowTechLevel.tooltip"));
+        chkShowTechLevel.setSelected(CConfig.getBooleanParam(CConfig.RS_SHOW_TECH_LEVEL));
+
         chkHeatProfile.setText(resourceMap.getString("ConfigurationDialog.chkHeatProfile.text"));
         chkHeatProfile.setToolTipText(resourceMap.getString("ConfigurationDialog.chkHeatProfile.tooltip"));
         chkHeatProfile.setSelected(CConfig.getBooleanParam(CConfig.RS_HEAT_PROFILE));
@@ -391,6 +396,7 @@ class ExportSettingsPanel extends JPanel {
         innerGridPanel.add(damagePanel);
         innerGridPanel.add(chkShowEraIcon);
         innerGridPanel.add(chkShowRole);
+        innerGridPanel.add(chkShowTechLevel);
         innerGridPanel.add(chkHeatProfile);
         innerGridPanel.add(chkTacOpsHeat);
         innerGridPanel.add(chkAlternateArmorGrouping);
@@ -405,7 +411,6 @@ class ExportSettingsPanel extends JPanel {
         innerGridPanel.add(chkDiscordExportAvailability);
         innerGridPanel.add(chkDiscordExportFluff);
         innerGridPanel.add(chkDiscordExportNitroLimit);
-        innerGridPanel.add(new JLabel(""));
         innerGridPanel.add(new JLabel(""));
         gridPanel.add(innerGridPanel);
         gridPanel.add(chkTacOpsVehicleEffectiveness);
@@ -463,6 +468,7 @@ class ExportSettingsPanel extends JPanel {
               String.format("#%06X", btnDamageColor.getBackground().getRGB() & 0xFFFFFF));
         recordSheetSettings.put(CConfig.RS_SHOW_ERA, Boolean.toString(chkShowEraIcon.isSelected()));
         recordSheetSettings.put(CConfig.RS_SHOW_ROLE, Boolean.toString(chkShowRole.isSelected()));
+        recordSheetSettings.put(CConfig.RS_SHOW_TECH_LEVEL, Boolean.toString(chkShowTechLevel.isSelected()));
         recordSheetSettings.put(CConfig.RS_HEAT_PROFILE, Boolean.toString(chkHeatProfile.isSelected()));
         recordSheetSettings.put(CConfig.RS_TAC_OPS_HEAT, Boolean.toString(chkTacOpsHeat.isSelected()));
         recordSheetSettings.put(CConfig.RS_SCALE_UNITS, RSScale.values()[cbRSScale.getSelectedIndex()].toString());

@@ -37,7 +37,6 @@ import javax.swing.BoxLayout;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
-import megamek.codeUtilities.MathUtility;
 import megamek.common.TechConstants;
 import megamek.common.enums.TechRating;
 import megamek.common.equipment.ArmorType;
@@ -132,12 +131,17 @@ public class SVArmorTab extends ITab implements ArmorAllocationListener {
     @Override
     public void armorTypeChanged(int at, int armorTechLevel) {
         if (at != EquipmentType.T_ARMOR_PATCHWORK) {
+            double initialArmorTonnage = getEntity().getArmorWeight();
             UnitUtil.removeISorArmorMounts(getEntity(), false);
             getEntity().setArmorTechLevel(armorTechLevel);
             getEntity().setArmorType(at);
             ArmorType armor = ArmorType.of(at, TechConstants.isClan(armorTechLevel));
             getEntity().setBARRating(armor.getBAR());
             getEntity().setArmorTechRating(panArmor.getTechRating());
+            double maxArmorTonnage = UnitUtil.getMaximumArmorTonnage(getEntity());
+            if (initialArmorTonnage > maxArmorTonnage) {
+                getEntity().setArmorTonnage(maxArmorTonnage);
+            }
             panArmorAllocation.showPatchwork(false);
             panPatchwork.setVisible(false);
         } else {
@@ -199,7 +203,7 @@ public class SVArmorTab extends ITab implements ArmorAllocationListener {
             remainingTonnage = TestEntity.floor(remainingTonnage, Ceil.HALF_TON);
         }
 
-        double maxArmor = MathUtility.clamp(getEntity().getArmorWeight() + remainingTonnage, 0,
+        double maxArmor = Math.clamp(getEntity().getArmorWeight() + remainingTonnage, 0,
               UnitUtil.getMaximumArmorTonnage(getEntity()));
         getEntity().setArmorTonnage(maxArmor);
         panArmor.removeListener(this);

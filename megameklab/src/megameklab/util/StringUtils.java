@@ -191,14 +191,13 @@ public class StringUtils {
                     info = Integer.toString(weapon.getRackSize());
                     info += "[DB,AE]";
                 } else if (weapon instanceof ThunderboltWeapon) {
-                    if (weapon instanceof ISThunderbolt5) {
-                        info = "5";
-                    } else if (weapon instanceof ISThunderbolt10) {
-                        info = "10";
-                    } else if (weapon instanceof ISThunderbolt15) {
-                        info = "15";
-                    } else if (weapon instanceof ISThunderbolt20) {
-                        info = "20";
+                    switch (weapon) {
+                        case ISThunderbolt5 ignored -> info = "5";
+                        case ISThunderbolt10 ignored -> info = "10";
+                        case ISThunderbolt15 ignored -> info = "15";
+                        case ISThunderbolt20 ignored -> info = "20";
+                        default -> {
+                        }
                     }
                     info += "[M]";
                 } else if (weapon instanceof NarcWeapon) {
@@ -283,6 +282,11 @@ public class StringUtils {
                 info = info.substring(0, info.length() - 1) + "]";
 
             }
+        } else if ((mount instanceof MiscMounted) && mount.getType().hasFlag(MiscType.F_SHIELD)) {
+            // Core treats shields as punch modifiers; Total Warfare displays their historical standalone damage.
+            info = CConfig.usesTotalWarfareRules()
+                  ? Integer.toString(((MiscMounted) mount).getDamageAbsorption(unit, mount.getLocation()))
+                  : "\u2014";
         } else if ((mount instanceof MiscMounted) && (mount.getType().hasFlag(MiscType.F_CLUB)
               || mount.getType().hasFlag(MiscType.F_HAND_WEAPON))) {
             if (((MiscType) mount.getType()).isVibroblade()) {
