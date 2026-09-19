@@ -102,6 +102,7 @@ class ExportSettingsPanel extends JPanel {
     private final JCheckBox chkDiscordExportAvailability = new JCheckBox();
     private final JCheckBox chkDiscordExportFluff = new JCheckBox();
     private final JCheckBox chkDiscordExportNitroLimit = new JCheckBox();
+    private final JCheckBox chkDiscordExportColorNumbers = new JCheckBox();
     private final JCheckBox chkTacOpsVehicleEffectiveness = new JCheckBox();
 
     ExportSettingsPanel() {
@@ -333,6 +334,10 @@ class ExportSettingsPanel extends JPanel {
         chkDiscordExportNitroLimit.setToolTipText(Messages.getString("AdvancedOptions.DiscordExportNitroLimit.tooltip"));
         chkDiscordExportNitroLimit.setSelected(guiPrefs.getBoolean(GUIPreferences.ADVANCED_DISCORD_EXPORT_NITRO_LIMIT));
 
+        chkDiscordExportColorNumbers.setText(Messages.getString("AdvancedOptions.DiscordExportColorNumbers.name"));
+        chkDiscordExportColorNumbers.setToolTipText(Messages.getString("AdvancedOptions.DiscordExportColorNumbers.tooltip"));
+        chkDiscordExportColorNumbers.setSelected(guiPrefs.getBoolean(GUIPreferences.ADVANCED_DISCORD_EXPORT_COLOR_NUMBERS));
+
         mekChassis.setRenderer(mekNameArrangementRenderer);
         mekChassis.setSelectedItem(CConfig.getMekNameArrangement());
         mekChassis.setToolTipText(resourceMap.getString("ConfigurationDialog.mekChassis.tooltip"));
@@ -411,13 +416,17 @@ class ExportSettingsPanel extends JPanel {
         innerGridPanel.add(chkDiscordExportAvailability);
         innerGridPanel.add(chkDiscordExportFluff);
         innerGridPanel.add(chkDiscordExportNitroLimit);
+        innerGridPanel.add(chkDiscordExportColorNumbers);
         innerGridPanel.add(new JLabel(""));
         gridPanel.add(innerGridPanel);
         gridPanel.add(chkTacOpsVehicleEffectiveness);
         gridPanel.add(mekNameLine);
         gridPanel.add(scalePanel);
 
-        SpringUtilities.makeCompactGrid(innerGridPanel, 14, 2, 0, 0, 15, 6);
+        if (innerGridPanel.getComponentCount() % 2 != 0) {
+            innerGridPanel.add(new JLabel(""));
+        }
+        SpringUtilities.makeCompactGrid(innerGridPanel, innerGridPanel.getComponentCount() / 2, 2, 0, 0, 15, 6);
         SpringUtilities.makeCompactGrid(gridPanel, 9, 1, 0, 0, 15, 6);
         gridPanel.setBorder(new EmptyBorder(20, 30, 20, 30));
         setLayout(new FlowLayout(FlowLayout.LEFT));
@@ -510,21 +519,25 @@ class ExportSettingsPanel extends JPanel {
         }
     }
 
-      boolean discordExportTechLevel() {
-            return chkDiscordExportTechLevel.isSelected();
-      }
+    boolean discordExportTechLevel() {
+        return chkDiscordExportTechLevel.isSelected();
+    }
 
-      boolean discordExportAvailability() {
-            return chkDiscordExportAvailability.isSelected();
-      }
+    boolean discordExportAvailability() {
+        return chkDiscordExportAvailability.isSelected();
+    }
 
-      boolean discordExportFluff() {
-            return chkDiscordExportFluff.isSelected();
-      }
+    boolean discordExportFluff() {
+        return chkDiscordExportFluff.isSelected();
+    }
 
-      boolean discordExportNitroLimit() {
-            return chkDiscordExportNitroLimit.isSelected();
-      }
+    boolean discordExportNitroLimit() {
+        return chkDiscordExportNitroLimit.isSelected();
+    }
+
+    boolean discordExportColorNumbers() {
+        return chkDiscordExportColorNumbers.isSelected();
+    }
 
     DefaultListCellRenderer mekNameArrangementRenderer = new DefaultListCellRenderer() {
         @Override

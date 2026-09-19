@@ -106,6 +106,7 @@ public class SettingsDialog extends AbstractMMLButtonDialog {
         GUIPreferences.getInstance().setValue(GUIPreferences.ADVANCED_DISCORD_EXPORT_AVAILABILITY, exportSettingsPanel.discordExportAvailability());
         GUIPreferences.getInstance().setValue(GUIPreferences.ADVANCED_DISCORD_EXPORT_FLUFF, exportSettingsPanel.discordExportFluff());
         GUIPreferences.getInstance().setValue(GUIPreferences.ADVANCED_DISCORD_EXPORT_NITRO_LIMIT, exportSettingsPanel.discordExportNitroLimit());
+        GUIPreferences.getInstance().setValue(GUIPreferences.ADVANCED_DISCORD_EXPORT_COLOR_NUMBERS, exportSettingsPanel.discordExportColorNumbers());
         dispose();
     }
 
