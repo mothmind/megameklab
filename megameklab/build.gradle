@@ -42,7 +42,7 @@ sourceSets {
 }
 
 ext {
-    mmlJvmOptions = ['-Xmx1024m', '-Dsun.awt.disablegrab=true']
+    mmlJvmOptions = ['-Xmx2048m', '-Xms512m', '-Dsun.awt.disablegrab=true']
     fileStagingDir = "${layout.buildDirectory.get()}/files"
 
     mmDir = "${rootDir}/../megamek"
@@ -104,7 +104,8 @@ dependencies {
 application {
     mainClass = 'megameklab.MegaMekLab'
     applicationDefaultJvmArgs = [
-            '-Xmx1024m',
+            '-Xmx2048m',
+            '-Xms512m',
     ]
 }
 
